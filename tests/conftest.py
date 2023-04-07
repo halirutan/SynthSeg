@@ -2,6 +2,8 @@ import pytest
 from . import TestData
 import numpy as np
 from SynthSeg.model_inputs import build_model_inputs
+import random
+import tensorflow as tf
 
 
 @pytest.fixture(scope="session")
@@ -11,11 +13,11 @@ def model_inputs():
     Returns:
         A List containing the input label map, as well as the means and stds defining the parameters of the GMM.
     """
+    np.random.seed(43)
+
     labels_classes_path = TestData.synth_seg_path / "data" / "labels_classes_priors"
     generation_labels = np.load(labels_classes_path / "generation_labels.npy")
     generation_classes = np.load(labels_classes_path / "generation_classes.npy")
-
-    np.random.seed(43)
 
     model_inputs_generator = build_model_inputs(
         path_label_maps=sorted(TestData.get_label_maps()),
@@ -34,3 +36,10 @@ def model_inputs():
     model_inputs = next(model_inputs_generator)
 
     return model_inputs
+
+
+@pytest.fixture()
+def set_random_seeds():
+    random.seed(43)
+    np.random.seed(43)
+    tf.random.set_seed(43)

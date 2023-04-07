@@ -6,15 +6,12 @@ from pathlib import Path
 import os
 
 
-def test_brain_generator():
+def test_brain_generator(set_random_seeds):
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     image_path = Path(__file__).parent / "brain_image_seed43.npy"
     label_path = Path(__file__).parent / "brain_label_seed43.npy"
 
-    tf.random.set_seed(43)
-    np.random.seed(43)
-
-    label_map_files = TestData.get_label_maps()
+    label_map_files = sorted(TestData.get_label_maps())
 
     brain_generator = bg.BrainGenerator(label_map_files[0], output_shape=16)
     image, label = brain_generator.generate_brain()
