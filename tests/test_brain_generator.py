@@ -1,7 +1,6 @@
 from . import TestData
 import SynthSeg.brain_generator as bg
 import numpy as np
-import tensorflow as tf
 from pathlib import Path
 import os
 
