@@ -588,6 +588,7 @@ class SampleResolution(Layer):
         super(SampleResolution, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
+        min_res_tens = self.min_res_tens
 
         if not self.add_batchsize:
             shape = [self.n_dims]
@@ -597,7 +598,7 @@ class SampleResolution(Layer):
         else:
             batch = tf.split(tf.shape(inputs), [1, -1])[0]
             tile_shape = tf.concat([batch, tf.convert_to_tensor([1], dtype='int32')], axis=0)
-            self.min_res_tens = tf.tile(tf.expand_dims(self.min_res_tens, 0), tile_shape)
+            min_res_tens = tf.tile(tf.expand_dims(min_res_tens, 0), tile_shape)
 
             shape = tf.concat([batch, tf.convert_to_tensor([self.n_dims], dtype='int32')], axis=0)
             indices = tf.stack([tf.range(0, batch[0]), tf.random.uniform(batch, 0, self.n_dims, dtype='int32')], 1)
@@ -605,21 +606,21 @@ class SampleResolution(Layer):
 
         # return min resolution as tensor if min=max
         if (self.max_res_iso is None) & (self.max_res_aniso is None):
-            new_resolution = self.min_res_tens
+            new_resolution = min_res_tens
 
         # sample isotropic resolution only
         elif (self.max_res_iso is not None) & (self.max_res_aniso is None):
             new_resolution_iso = tf.random.uniform(shape, minval=self.min_res, maxval=self.max_res_iso)
             new_resolution = K.switch(tf.squeeze(K.less(tf.random.uniform([1], 0, 1), self.prob_min)),
-                                      self.min_res_tens,
+                                      min_res_tens,
                                       new_resolution_iso)
 
         # sample anisotropic resolution only
         elif (self.max_res_iso is None) & (self.max_res_aniso is not None):
             new_resolution_aniso = tf.random.uniform(shape, minval=self.min_res, maxval=self.max_res_aniso)
             new_resolution = K.switch(tf.squeeze(K.less(tf.random.uniform([1], 0, 1), self.prob_min)),
-                                      self.min_res_tens,
-                                      tf.where(mask, new_resolution_aniso, self.min_res_tens))
+                                      min_res_tens,
+                                      tf.where(mask, new_resolution_aniso, min_res_tens))
 
         # sample either anisotropic or isotropic resolution
         else:
@@ -627,13 +628,13 @@ class SampleResolution(Layer):
             new_resolution_aniso = tf.random.uniform(shape, minval=self.min_res, maxval=self.max_res_aniso)
             new_resolution = K.switch(tf.squeeze(K.less(tf.random.uniform([1], 0, 1), self.prob_iso)),
                                       new_resolution_iso,
-                                      tf.where(mask, new_resolution_aniso, self.min_res_tens))
+                                      tf.where(mask, new_resolution_aniso, min_res_tens))
             new_resolution = K.switch(tf.squeeze(K.less(tf.random.uniform([1], 0, 1), self.prob_min)),
-                                      self.min_res_tens,
+                                      min_res_tens,
                                       new_resolution)
 
         if self.return_thickness:
-            return [new_resolution, tf.random.uniform(tf.shape(self.min_res_tens), self.min_res_tens, new_resolution)]
+            return [new_resolution, tf.random.uniform(tf.shape(min_res_tens), min_res_tens, new_resolution)]
         else:
             return new_resolution
 
