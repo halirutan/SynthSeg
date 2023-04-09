@@ -9,21 +9,24 @@ def test_random_crop(model_inputs, set_random_seeds):
     random_crop_target_path = Path(__file__).parent / "random_crop_seed43.npy"
 
     labels_input = Input(shape=model_inputs[0].shape[1:], name='labels_input', dtype='int32')
-    random_crop_layer = layers.RandomCrop(crop_shape=[16, 16, 16])(labels_input)
+    random_crop_layer = layers.RandomCrop(crop_shape=[64]*3)(labels_input)
 
     model = Model(inputs=labels_input, outputs=random_crop_layer)
 
-    out = model.predict(model_inputs[0])
+    output = model.predict(model_inputs[0])
 
-    out_target = np.load(str(random_crop_target_path))
+    # np.save(random_crop_target_path, output)
+    output_target = np.load(str(random_crop_target_path))
 
-    assert np.allclose(out, out_target)
+    assert np.allclose(output, output_target)
 
 
-def test_random_spatial_deformation(model_inputs, set_random_seeds):
+def test_random_spatial_deformation(set_random_seeds):
     random_spatial_deformation_target_path = Path(__file__).parent / "random_spatial_deformation_seed43.npy"
 
-    labels_input = Input(shape=model_inputs[0].shape[1:], name='labels_input', dtype='int32')
+    label_map = np.load(str(Path(__file__).parent / "random_crop_seed43.npy"))
+
+    labels_input = Input(shape=label_map.shape[1:], name='labels_input', dtype='int32')
 
     random_spatial_deformation_layer = layers.RandomSpatialDeformation(
         scaling_bounds=0.2,
@@ -36,8 +39,9 @@ def test_random_spatial_deformation(model_inputs, set_random_seeds):
 
     model = Model(inputs=labels_input, outputs=random_spatial_deformation_layer)
 
-    output = model.predict(model_inputs[0])
+    output = model.predict(label_map)
 
+    # np.save(random_spatial_deformation_target_path, output)
     output_target = np.load(str(random_spatial_deformation_target_path))
 
     assert np.allclose(output, output_target)
