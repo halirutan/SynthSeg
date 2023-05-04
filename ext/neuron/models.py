@@ -17,11 +17,11 @@ from . import layers
 # third party
 import numpy as np
 import tensorflow as tf
-import keras
-import keras.layers as KL
-from keras.models import Model
-import keras.backend as K
-from keras.constraints import maxnorm
+import tensorflow.keras as keras
+import tensorflow.keras.layers as KL
+from tensorflow.keras.models import Model
+import tensorflow.keras.backend as K
+from tensorflow.keras.constraints import MaxNorm
 
 
 def dilation_net(nb_features,
@@ -882,7 +882,7 @@ def design_dnn(nb_features, input_shape, nb_levels, conv_size, nb_labels,
     # kwargs for the convolution layer
     conv_kwargs = {'padding': padding, 'activation': activation}
     if conv_maxnorm > 0:
-        conv_kwargs['kernel_constraint'] = maxnorm(conv_maxnorm)
+        conv_kwargs['kernel_constraint'] = MaxNorm(conv_maxnorm)
 
     # initialize a dictionary
     enc_tensors = {}

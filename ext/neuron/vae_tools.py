@@ -6,13 +6,13 @@ from tempfile import NamedTemporaryFile
 # third party imports
 import tensorflow as tf
 import numpy as np
-import keras
+import tensorflow.keras as keras
 import matplotlib.pyplot as plt
-from keras import backend as K
+from tensorflow.keras import backend as K
 from tqdm import tqdm as tqdm
-from keras import layers as KL
+from tensorflow.keras import layers as KL
 from sklearn.decomposition import PCA
-from keras.utils import plot_model
+from tensorflow.keras.utils import plot_model
 from IPython.display import Image
 
 

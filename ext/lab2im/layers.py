@@ -38,8 +38,8 @@ from typing import Union, List, Tuple, Any
 # python imports
 import numpy as np
 import tensorflow as tf
-import keras.backend as K
-from keras.layers import Layer
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Layer
 
 # project imports
 from . import utils

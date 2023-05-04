@@ -29,8 +29,8 @@ from ext.pytools import patchlib as pl
 
 # often changed file
 from imp import reload
-import keras
-import keras.backend as K
+import tensorflow.keras as keras
+import tensorflow.keras.backend as K
 import tensorflow as tf
 
 reload(pl)

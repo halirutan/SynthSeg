@@ -19,7 +19,7 @@ License: GPLv3
 # third party
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
+from tensorflow.keras import backend as K
 
 # TODO: figure out the equivalent for a newer keras version
 #from keras.legacy import interfaces
@@ -30,8 +30,8 @@ interfaces = namedtuple(
     defaults=[lambda x: x]
 )()
 
-from keras.layers import Layer
-from keras.engine.node import Node
+from tensorflow.keras.layers import Layer
+from tensorflow.python.keras.engine.node import Node
 from copy import deepcopy
 from tensorflow import TensorShape
 

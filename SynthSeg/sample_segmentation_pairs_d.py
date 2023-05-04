@@ -18,8 +18,8 @@ import os
 import copy
 import numpy as np
 import tensorflow as tf
-from keras import models
-import keras.layers as KL
+from tensorflow.keras import models
+import tensorflow.keras.layers as KL
 
 # third-party imports
 from ext.lab2im import layers as layers

@@ -16,7 +16,7 @@ We'd like the following callback actions for neuron:
 import sys
 import collections
 
-import keras
+import tensorflow.keras as keras
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
