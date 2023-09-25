@@ -776,7 +776,7 @@ class MakeShape(KL.Layer):
         super(MakeShape, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
-        return tf.map_fn(self._single_process, inputs, dtype=tf.int32)
+        return tf.map_fn(self._single_process, inputs, fn_output_signature=tf.int32)
 
     def _single_process(self, inputs):
 
