@@ -124,11 +124,17 @@ if __name__ == '__main__':
 
         # Load config and make paths within the config absolute
         generator_config = GeneratorOptions.load(conf_file)
-        generator_config = generator_config.with_absolute_paths(os.path.abspath(conf_file))
+        generator_config = (generator_config
+                            .with_absolute_paths(os.path.abspath(conf_file))
+                            .convert_lists_to_numpy()
+                            )
     else:
         logger.error("No valid config file. Initialize generator with default values and cmd-line parameters.")
         generator_config = args.generate
-        generator_config = generator_config.with_absolute_paths(os.path.abspath(conf_file))
+        generator_config = (generator_config
+                            .with_absolute_paths(os.path.abspath(conf_file))
+                            .convert_lists_to_numpy()
+                            )
 
     if general_params.count <= 0:
         logger.error(f"Number of training pairs to generate must be positive but was {general_params.count}.")

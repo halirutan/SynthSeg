@@ -1,6 +1,7 @@
 from __future__ import annotations
 from simple_parsing.helpers import Serializable
 from dataclasses import dataclass
+import numpy as np
 
 from .option_types import *
 from .option_utils import get_absolute_path
@@ -268,3 +269,14 @@ class GeneratorOptions(Serializable):
             else:
                 setattr(copy, key, value)
         return copy
+
+    def convert_lists_to_numpy(self):
+        copy = GeneratorOptions()
+        np_properties = ["generation_labels", "output_labels", "generation_classes", "prior_means", "prior_stds"]
+        for key, value in vars(self).items():
+            if key in np_properties and isinstance(value, list):
+                setattr(copy, key, np.array(value))
+            else:
+                setattr(copy, key, value)
+        return copy
+
