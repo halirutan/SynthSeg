@@ -1,19 +1,25 @@
+from typing import List
 import nibabel as nib
 import nibabel.processing as proc
 import numpy as np
 from os import listdir
 from os.path import isfile, join
 import re
+from dataclasses import dataclass, field
+import logging
+from simple_parsing import ArgumentParser
+import sys
 
 import SynthSeg.analysis.freesurfer_tools as fsl_tools
+import SynthSeg.brain_generator_options as gen_opts
 
 
-def windowRescale(nifti_file: str,
-                  out_file: str,
-                  min_clip: float,
-                  max_clip: float,
-                  min_out: float = 0.0,
-                  max_out: float = 255.0):
+def clip_and_rescale_nifti(nifti_file: str,
+                           out_file: str,
+                           min_clip: float,
+                           max_clip: float,
+                           min_out: float = 0.0,
+                           max_out: float = 255.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
     This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
@@ -33,7 +39,7 @@ def windowRescale(nifti_file: str,
     nib.save(nib.Nifti1Image(rescaled_data, img.affine, img.header), out_file)
 
 
-def createContrastEntries(
+def estimate_contrast_distribution(
         scan_file: str,
         label_file: str,
         percent_deviation: float = 5.0) -> dict:
@@ -49,16 +55,15 @@ def createContrastEntries(
     Args:
         scan_file (str): The file path of the scan.
         label_file (str): The file path of the label.
-        percent_deviation (float, optional): The percentage deviation. Defaults to 5.0.
+        percent_deviation (float, optional): The percentage deviation. Default is 5.0.
 
     Returns:
         dict: With the entries "output_labels", "generation_classes", "prior_means", and "prior_stds". All are input
         arguments for SynthSeg's brain generator.
     """
 
-    # noinspection PyUnresolvedReferences
-    info = analyseLabelScanPair(scan_file, label_file)
-    info = equalizeLeftRightRegions(info)
+    info = analyze_scan_and_label(scan_file, label_file)
+    info = equalize_region_stats(info)
     assert set(info.keys()) == {"left_regions", "neutral_regions", "right_regions", "labels"}
     # labels = info["labels"]
 
@@ -76,7 +81,7 @@ def createContrastEntries(
     min_prior_stds = []
     max_prior_stds = []
 
-    def appendValues(t: fsl_tools.TissueType):
+    def append_values(t: fsl_tools.TissueType):
         mean = t.mean
         std = t.std_dev
         min_prior_means.append(max(0.0, mean*(1.0 - percent_deviation/100.0)))
@@ -86,11 +91,11 @@ def createContrastEntries(
 
     for label_index in range(len_neutral_labels):
         current_type = info["neutral_regions"][label_index]
-        appendValues(current_type)
+        append_values(current_type)
 
     for label_index in range(len_left_labels):
         current_type = info["left_regions"][label_index]
-        appendValues(current_type)
+        append_values(current_type)
 
     return {
         "generation_labels": generation_labels,
@@ -101,7 +106,7 @@ def createContrastEntries(
         "prior_stds": [min_prior_stds, max_prior_stds]}
 
 
-def analyseLabelScanPair(scan_file: str, label_file: str) -> dict:
+def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
     """
     Calculates region statistics and information for a given scan and segmentation image pair.
     Scan and label images are not required to have the same resolution, but they need to represent the same view.
@@ -127,7 +132,9 @@ def analyseLabelScanPair(scan_file: str, label_file: str) -> dict:
     # noinspection PyUnresolvedReferences
     resampled_labels_data = resampled_labels.get_fdata()
     labels = np.unique(label_data.flatten()).astype(np.int32)
-    result = list(map(lambda l: fsl_tools.generate_tissue_types_from_sample(scan_data, resampled_labels_data, l), labels))
+    result = list(map(
+        lambda label: fsl_tools.generate_tissue_types_from_sample(scan_data, resampled_labels_data, label), labels
+    ))
 
     left_regions = list(filter(lambda entry: re.match(fsl_tools.FSL_LEFT_LABEL_REGEX, entry.label.name), result))
     left_regions.sort(key=lambda entry: entry.segmentation_class)
@@ -145,7 +152,7 @@ def analyseLabelScanPair(scan_file: str, label_file: str) -> dict:
     }
 
 
-def equalizeLeftRightRegions(regions_dict: dict) -> dict:
+def equalize_region_stats(regions_dict: dict) -> dict:
     """
     Equalizes the mean and standard deviation between corresponding left and right regions.
     The input should be the dictionary that is returned by `analyseLabelScanPair`.
@@ -175,7 +182,7 @@ def equalizeLeftRightRegions(regions_dict: dict) -> dict:
     return regions_dict
 
 
-def listAvailableLabelsInMap(nifti_file: str) -> np.ndarray:
+def list_available_labels_in_map(nifti_file: str) -> np.ndarray:
     """
     Reads in a segmentation NIfTI image and returns a list of all labels found in the image.
 
@@ -186,12 +193,12 @@ def listAvailableLabelsInMap(nifti_file: str) -> np.ndarray:
     Returns:
         np.ndarray: Sorted numpy array of all found labels
     """
-    labelMap = nib.load(nifti_file)
-    data = np.array(labelMap.get_data(), dtype=np.int64)
+    label_map = nib.load(nifti_file)
+    data = np.array(label_map.get_data(), dtype=np.int64)
     return np.unique(data)
 
 
-def findAllAvailableLabels(directory: str) -> np.ndarray:
+def find_all_available_labels(directory: str) -> np.ndarray:
     """
     Does the same as `listAvailableLabelsInMap` but for a whole directory containing
     segmentation maps.
@@ -205,6 +212,47 @@ def findAllAvailableLabels(directory: str) -> np.ndarray:
     result = np.array([])
     files = [join(directory, f) for f in listdir(directory) if isfile(join(directory, f))]
     for f in files:
-        labels = listAvailableLabelsInMap(f)
+        labels = list_available_labels_in_map(f)
         result = np.append(result, labels)
     return np.unique(result)
+
+
+@dataclass
+class Options:
+    label_file: str = None
+    """The segmentation image with regions and labels according to FSL."""
+
+    scan_files: List[str] = field(default_factory=list)
+    """A list of n specific images with different contrast that are analysed.
+     The label_file must be a segmentation of these images."""
+
+    clip_min: List[float] = field(default_factory=list)
+    """A list of n minimum clip values for each provided scan file."""
+
+    clip_max: List[float] = field(default_factory=list)
+    """A list of n maximum clip values for each provided scan file."""
+
+    output_dir: str = None
+    """Output directory for the analysis result and the rescaled scan files."""
+
+
+if __name__ == '__main__':
+    logger = logging.getLogger("Analyse Label and Scan")
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    parser = ArgumentParser()
+    # noinspection PyTypeChecker
+    parser.add_arguments(Options, "general")
+    args = parser.parse_args()
+    print(args)
+
+    # Check if clip values match the number of scans.
+    # Window and rescale all scans and save them to the output directory.
+    # Analyze each scan with the label image and collect the results.
+    # Write out the analysis result as a template brain generator config.
+    pass

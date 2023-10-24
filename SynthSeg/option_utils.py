@@ -1,8 +1,10 @@
 import os
 from typing import Optional
 
+project_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def get_absolute_path(filename: str, reference_file: Optional[str] = None) -> str:
+
+def get_absolute_path(filename: str, reference_file: Optional[str] = project_directory) -> str:
     """
     Function to get the absolute path of a file where reference_file is used to resolve relative paths.
 
