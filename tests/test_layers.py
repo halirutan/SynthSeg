@@ -29,12 +29,15 @@ def test_gaussian_blur_kernel():
     which seems to be the cow that is milked all over the place.
     """
     tf.keras.utils.set_random_seed(12345)
-    sigma = tf.convert_to_tensor([[0.5, 0.5, 1.01]])
-    max_sigma = ListWrapper([6.0, 6.0, 6.0])
+    sigma = [0.5, 0.5, 1.01]
+    max_sigma = [6.0, 6.0, 6.0]
     blur_range = 1.03
     separable = True
     kernels = gaussian_kernel(sigma, max_sigma, blur_range, separable)
-    assert tf.is_tensor(kernels)
+    assert isinstance(kernels, list)
+    assert len(kernels) == 3
+    for e in kernels:
+        assert tf.is_tensor(e)
 
 
 def test_random_crop(model_inputs):
