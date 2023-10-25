@@ -1,4 +1,5 @@
-from typing import List
+import os
+from typing import List, Optional
 import nibabel as nib
 import nibabel.processing as proc
 import numpy as np
@@ -10,16 +11,27 @@ import logging
 from simple_parsing import ArgumentParser
 import sys
 
-import SynthSeg.analysis.freesurfer_tools as fsl_tools
-import SynthSeg.brain_generator_options as gen_opts
+
+def setup_logger():
+    our_logger = logging.getLogger("Analyse Label and Scan")
+    our_logger.setLevel(logging.DEBUG)
+    log_stdout_handler = logging.StreamHandler(sys.stdout)
+    log_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    log_stdout_handler.setFormatter(log_formatter)
+    our_logger.addHandler(log_stdout_handler)
+    return our_logger
+
+
+# Global instance
+logger = setup_logger()
 
 
 def clip_and_rescale_nifti(nifti_file: str,
                            out_file: str,
-                           min_clip: float,
-                           max_clip: float,
+                           min_clip: Optional[float] = None,
+                           max_clip: Optional[float] = None,
                            min_out: float = 0.0,
-                           max_out: float = 255.0):
+                           max_out: float = 1.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
     This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
@@ -61,6 +73,8 @@ def estimate_contrast_distribution(
         dict: With the entries "output_labels", "generation_classes", "prior_means", and "prior_stds". All are input
         arguments for SynthSeg's brain generator.
     """
+
+    import SynthSeg.analysis.freesurfer_tools as fsl_tools
 
     info = analyze_scan_and_label(scan_file, label_file)
     info = equalize_region_stats(info)
@@ -124,6 +138,8 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
             - "left_regions": A sorted list of tissue types found in regions specific to the left side.
             - "right_regions": A sorted list of tissue types found in regions specific to the right side.
     """
+    import SynthSeg.analysis.freesurfer_tools as fsl_tools
+
     label_img = nib.load(label_file)
     label_data = label_img.get_fdata()
     scan_img = nib.load(scan_file)
@@ -235,24 +251,72 @@ class Options:
     output_dir: str = None
     """Output directory for the analysis result and the rescaled scan files."""
 
+    verbose: bool = False
+    """Print debugging messages"""
+
 
 if __name__ == '__main__':
-    logger = logging.getLogger("Analyse Label and Scan")
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
     parser = ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_arguments(Options, "general")
     args = parser.parse_args()
-    print(args)
+    options: Options = args.general
+
+    if isinstance(options.output_dir, str) and os.path.isdir(options.output_dir):
+        logger.debug(f"Using output directory: '{options.output_dir}'")
+    else:
+        logger.error(f"Output directory does not exist: '{options.output_dir}'")
+        exit(1)
+
+    if isinstance(options.label_file, str) and os.path.isfile(options.label_file):
+        logger.debug(f"Segmentation image: '{options.label_file}'")
+    else:
+        logger.error(f"Segmentation image does not exist: '{options.label_file}'")
+        exit(1)
+
+    if isinstance(options.scan_files, list):
+        for image_num, f in enumerate(options.scan_files):
+            if isinstance(f, str) and os.path.isfile(f):
+                logger.debug(f"Using contrast image {image_num + 1}: '{f}'")
+            else:
+                logger.error(f"Contrast image does not exist: '{f}'")
+                exit(1)
+
+    num_contrasts = len(options.scan_files)
+    clip_min_values = [None for i in range(num_contrasts)]
+    clip_max_values = [None for i in range(num_contrasts)]
 
     # Check if clip values match the number of scans.
+    if len(options.clip_min) == num_contrasts:
+        clip_min_values = options.clip_min
+    elif len(options.clip_min) == 0:
+        logger.info("No min clip values provided. No clipping of values in the contrast images will happen.")
+    else:
+        logger.error("Either provide no min clip values or exactly as many as there are scan files.")
+        exit(1)
+
+    if len(options.clip_max) == num_contrasts:
+        clip_max_values = options.clip_max
+    elif len(options.clip_max) == 0:
+        logger.info("No max clip values provided. No clipping of values in the contrast images will happen.")
+    else:
+        logger.error("Either provide no max clip values or exactly as many as there are scan files.")
+        exit(1)
+
     # Window and rescale all scans and save them to the output directory.
+    rescaled_contrast_images = []
+    for image_num, f in enumerate(options.scan_files):
+        file_name = os.path.basename(f)
+        logger.info(f"Rescaling image {file_name}")
+        output_file_path = os.path.join(options.output_dir, file_name)
+        clip_and_rescale_nifti(f, output_file_path,
+                               min_clip=clip_min_values[image_num], max_clip=clip_max_values[image_num])
+        rescaled_contrast_images.append(output_file_path)
+
     # Analyze each scan with the label image and collect the results.
+    statistics = []
+    for f in rescaled_contrast_images:
+        statistics.append(estimate_contrast_distribution(f, options.label_file, percent_deviation=5.0))
+
     # Write out the analysis result as a template brain generator config.
     pass
