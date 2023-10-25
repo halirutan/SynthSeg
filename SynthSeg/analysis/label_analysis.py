@@ -98,10 +98,10 @@ def estimate_contrast_distribution(
     def append_values(t: fsl_tools.TissueType):
         mean = t.mean
         std = t.std_dev
-        min_prior_means.append(max(0.0, mean*(1.0 - percent_deviation/100.0)))
-        max_prior_means.append(min(1.0, mean*(1.0 + percent_deviation/100.0)))
-        min_prior_stds.append(max(0.0, std*(1.0 - percent_deviation/100.0)*0.001))
-        max_prior_stds.append(min(1.0, std*(1.0 + percent_deviation/100.0)*0.001))
+        min_prior_means.append(max(0.0, mean * (1.0 - percent_deviation / 100.0)))
+        max_prior_means.append(min(1.0, mean * (1.0 + percent_deviation / 100.0)))
+        min_prior_stds.append(max(0.0, std * (1.0 - percent_deviation / 100.0) * 0.001))
+        max_prior_stds.append(min(1.0, std * (1.0 + percent_deviation / 100.0) * 0.001))
 
     for label_index in range(len_neutral_labels):
         current_type = info["neutral_regions"][label_index]
@@ -110,6 +110,13 @@ def estimate_contrast_distribution(
     for label_index in range(len_left_labels):
         current_type = info["left_regions"][label_index]
         append_values(current_type)
+
+    # Convert numpy integers back to normal integers
+    generation_labels = [num.item() for num in generation_labels]
+    min_prior_means = [num.item() for num in min_prior_means]
+    max_prior_means = [num.item() for num in max_prior_means]
+    min_prior_stds = [num.item() for num in min_prior_stds]
+    max_prior_stds = [num.item() for num in max_prior_stds]
 
     return {
         "generation_labels": generation_labels,
@@ -189,8 +196,8 @@ def equalize_region_stats(regions_dict: dict) -> dict:
         left_name = left_regions[i].label.name
         right_name = left_name.replace("Left-", "Right-").replace("ctx-lh", "ctx-rh")
         assert right_regions[i].label.name == right_name
-        new_mean = 0.5*(left_regions[i].mean + right_regions[i].mean)
-        new_std_dev = 0.5*(left_regions[i].std_dev + right_regions[i].std_dev)
+        new_mean = 0.5 * (left_regions[i].mean + right_regions[i].mean)
+        new_std_dev = 0.5 * (left_regions[i].std_dev + right_regions[i].std_dev)
         left_regions[i].mean = new_mean
         right_regions[i].mean = new_mean
         left_regions[i].std_dev = new_std_dev
@@ -318,5 +325,46 @@ if __name__ == '__main__':
     for f in rescaled_contrast_images:
         statistics.append(estimate_contrast_distribution(f, options.label_file, percent_deviation=5.0))
 
+    import SynthSeg.brain_generator_options as gen
+
+    gen_opts = gen.GeneratorOptions()
+    gen_opts.n_channels = len(statistics)
+    gen_opts.use_specific_stats_for_channel = True
+    gen_opts.generation_labels = statistics[0]["generation_labels"]
+    gen_opts.generation_classes = statistics[0]["generation_classes"]
+    gen_opts.n_neutral_labels = statistics[0]["n_neutral_labels"]
+    gen_opts.output_labels = statistics[0]["output_labels"]
+    gen_opts.prior_means = statistics[0]["prior_means"]
+    gen_opts.prior_stds = statistics[0]["prior_stds"]
+
+    if len(statistics) > 1:
+        for stat in statistics[1:]:
+            gen_opts.prior_means = gen_opts.prior_means + stat["prior_means"]
+            gen_opts.prior_stds = gen_opts.prior_stds + stat["prior_stds"]
+
+    # Now we have the following problem: While we can perfectly determine all the labels that were used in the provided
+    # segmentation, SynthSeg uses many more labels and needs definitions for them in order create synthetic images.
+    # Right now, I don't have a good solution for that. What I will try out is to set unknown labels to background
+    # so that they will have random background contrast and will not be used for the training.
+    default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509, 511, 512, 514, 515, 516, 530, 2, 3,
+                                 4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 25, 26, 28, 30, 136, 137, 41, 42, 43, 44, 46, 47,
+                                 49, 50, 51, 52, 53, 54, 57, 58, 60, 62, 163, 164]
+
+    new_output_labels = []
+    new_generation_classes = []
+    for label in default_synth_seg_classes:
+        if label in gen_opts.generation_labels:
+            idx = gen_opts.generation_labels.index(label)
+            new_output_labels.append(label)
+            new_generation_classes.append(gen_opts.generation_classes[idx])
+        else:
+            new_output_labels.append(0)
+            new_generation_classes.append(0)
+
+    gen_opts.generation_labels = default_synth_seg_classes
+    gen_opts.output_labels = new_output_labels
+    gen_opts.generation_classes = new_generation_classes
+    gen_opts.n_neutral_labels = 18
+
     # Write out the analysis result as a template brain generator config.
-    pass
+    gen_opts.save_yaml(os.path.join(options.output_dir, "generator.yml"), default_flow_style=None)
