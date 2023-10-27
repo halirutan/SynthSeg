@@ -1,4 +1,4 @@
-# Python environment using Mamba
+# Python Environment using Mamba
 
 Mamba is basically conda, only faster, especially during the resolution of dependencies.
 Most conda commands can also be used in Mamba, but Mamba has additional nice features like
@@ -17,7 +17,28 @@ It will use the `environment.yml` file as the definition for the Python environm
    - If yes, it will call `mamba env update -f "environment.yml"` which checks if any of the package versions in the file have changed and update the environment accordingly.
    - If no, it will call `mamba env create -f "environment.yml"` to create a new environment.
 
-## Test job for Raven
+## Install SynthSeg Locally
+
+After creating the Mamba environment, you need to activate it using
+
+```shell
+conda activate synth_seg_py39
+```
+
+Then you can make the source code package available to Mamba by using
+the following in the root directory of the project:
+
+```shell
+pip install -E .
+```
+
+Now, all command line tools will be available directly in the terminal
+without having to call python.
+All scripts are prefixed with `synthSeg-`.
+Changes in the source code will be immediately available without requiring to
+re-install the package.
+
+## Test Job for Raven
 
 The `raven_test_job` directory contains a small example that uses tensorflow to train a network. It can be used
 to check if the Python environment indeed works and makes use of the GPU.
@@ -28,7 +49,7 @@ sbatch test_job.sh
 ```
 
 and check its status using `squery -u yourLogin`.
-Once it is finished you will find the log-files of the run inside the directory.
+Once it is finished, you will find the log-files of the run inside the directory.
 
 Note that this test-job currently assumes that the mamba environment is called `synth_seg_py39` and that you
 indeed have installed mamba in `$HOME/mambaforge`.

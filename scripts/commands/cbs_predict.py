@@ -152,7 +152,7 @@ class PredictOptions(Serializable):
     """
 
 
-if __name__ == '__main__':
+def main():
     parser = simple_parsing.ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_arguments(PredictOptions, dest="config")
@@ -214,3 +214,7 @@ if __name__ == '__main__':
             compute_distances=predict_options.compute_distances,
             recompute=predict_options.recompute,
             verbose=predict_options.verbose)
+
+
+if __name__ == '__main__':
+    main()

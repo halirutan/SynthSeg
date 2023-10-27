@@ -33,7 +33,7 @@ class Options:
 
 def fix_relative_path(dir_or_file: str) -> str:
     """
-    Turns a relative path into an absolute one that has its root at the project directory
+    Turns a relative path into an absolute one that has its root in the project directory
     """
     if len(dir_or_file) == 0:
         return "/"
@@ -55,6 +55,7 @@ def _generate_image_label_pair(
         output_path: Path to the output directory. We will create the subdirectories `images` and `labels`.
         file_name: Name of the output files. We will suffix them with `.nii.gz`.
     """
+    from lab2im import utils
     image_output_path = output_path / "images"
     image_output_path.mkdir(parents=True, exist_ok=True)
 
@@ -88,13 +89,13 @@ def _generate_tfrecord(
         output_path: Path to the output directory. We will create the subdirectory `tfrecords`.
         file_name: Name of the output file. We will suffix it with `.tfrecord`.
     """
-    output_path = output_path / "tfrecords"
+    output_path /= "tfrecords"
     output_path.mkdir(parents=True, exist_ok=True)
 
     brain_generator.generate_tfrecord(output_path / f"{file_name}.tfrecord")
 
 
-if __name__ == '__main__':
+def main():
     logger = logging.getLogger("Generate Brain")
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler(sys.stdout)
@@ -103,6 +104,8 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
+    logger.info(f"Project dir is: {project_directory}")
+
     parser = ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_arguments(Options, "general")
@@ -110,7 +113,6 @@ if __name__ == '__main__':
     parser.add_arguments(GeneratorOptions, "generate")
     args = parser.parse_args()
 
-    from ext.lab2im import utils
     general_params: Options = args.general
     if isinstance(general_params.output_dir, str):
         output_dir = fix_relative_path(general_params.output_dir)
@@ -153,3 +155,7 @@ if __name__ == '__main__':
             _generate_image_label_pair(generator, Path(output_dir), file_number)
 
         logger.info(f"Exported training pair number {file_number}")
+
+
+if __name__ == '__main__':
+    main()

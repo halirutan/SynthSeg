@@ -1,19 +1,22 @@
 name: synth_seg_py39
 channels:
   - conda-forge
+  - nvidia
 dependencies:
-  - python=3.9.16
+  - python==3.9.16
+  - poetry>=1.6.1
   - tensorflow-gpu==2.11.0
-  - cudatoolkit=11.8.0
-  - cudnn=8.4.1.50
-  - numpy=1.24.2
+  - cudatoolkit==11.8.0
+  - cuda-nvcc==12.2.140
+  - cudnn==8.4.1.50
+  - numpy==1.24.2
   - scikit-learn==1.2.2
-  - nibabel=5.0.1
-  - tqdm=4.65.0
-  - ipython=8.11.0
-  - Pillow=9.4.0
-  - pandas=1.5.3
-  - imageio=2.26.0
+  - nibabel==5.0.1
+  - tqdm==4.65.0
+  - ipython==8.11.0
+  - Pillow==9.4.0
+  - pandas==1.5.3
+  - imageio==2.26.0
   - matplotlib==3.7.1
   - wandb==0.14.0
   - pytest==7.2.2
