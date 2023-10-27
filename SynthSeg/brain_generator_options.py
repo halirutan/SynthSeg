@@ -279,4 +279,3 @@ class GeneratorOptions(Serializable):
             else:
                 setattr(copy, key, value)
         return copy
-

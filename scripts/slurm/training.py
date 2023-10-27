@@ -17,10 +17,11 @@ class CmdLineTrainingOptions:
     """
 
 
-if __name__ == "__main__":
+def main():
     parser = simple_parsing.ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_argument("--cfg_file", type=str, default="", help="Path to a cfg file.")
+    # noinspection PyTypeChecker
     parser.add_arguments(TrainingOptions, dest="options")
     args = parser.parse_args()
 
@@ -48,3 +49,7 @@ if __name__ == "__main__":
         from SynthSeg.training import training_from_options
 
         training_from_options(training_options)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,35 @@
+# This toml project file will only work within the correct Conda environment.
+# We don't specify any dependencies here, but as long as you use it within the
+# environment (see SynthSeg/python_env/mamba), you can use
+#
+# pip install -e .
+#
+# to add it to the environment. Main reason for this is to make it easier for
+# people who just want to use mainly the segmentation and not develop it.
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "SynthSeg"
+version = "2023.1.0"
+description = "Contrast-agnostic segmentation of MRI scans"
+authors = ["B. Billot"]
+packages = [
+    { include = "SynthSeg" },
+    { include = "lab2im", from="ext" },
+    { include = "neuron", from="ext" },
+    { include = "pynd", from="ext" },
+    { include = "pytools", from="ext" },
+    { include = "commands", from="scripts" },
+    { include = "slurm", from="scripts" },
+]
+
+[tool.poetry.scripts]
+synthSeg-mpm-analyse = "SynthSeg.analysis.label_analysis:main"
+synthSeg-cbs-predict = "scripts.commands.cbs_predict:main"
+synthSeg-predict = "scripts.commands.SynthSeg_predict:main"
+synthSeg-training = "scripts.commands.training:main"
+synthSeg-training-supervised = "scripts.commands.training_supervised:main"
+synthSeg-generate-synth-images = "scripts.slurm.generation:main"

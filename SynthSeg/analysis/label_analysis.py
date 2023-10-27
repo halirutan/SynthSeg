@@ -31,7 +31,7 @@ def clip_and_rescale_nifti(nifti_file: str,
                            min_clip: Optional[float] = None,
                            max_clip: Optional[float] = None,
                            min_out: float = 0.0,
-                           max_out: float = 1.0):
+                           max_out: float = 255.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
     This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
@@ -99,9 +99,9 @@ def estimate_contrast_distribution(
         mean = t.mean
         std = t.std_dev
         min_prior_means.append(max(0.0, mean * (1.0 - percent_deviation / 100.0)))
-        max_prior_means.append(min(1.0, mean * (1.0 + percent_deviation / 100.0)))
-        min_prior_stds.append(max(0.0, std * (1.0 - percent_deviation / 100.0) * 0.001))
-        max_prior_stds.append(min(1.0, std * (1.0 + percent_deviation / 100.0) * 0.001))
+        max_prior_means.append(min(255.0, mean * (1.0 + percent_deviation / 100.0)))
+        min_prior_stds.append(max(0.0, std * (1.0 - percent_deviation / 100.0)))
+        max_prior_stds.append(min(255.0, std * (1.0 + percent_deviation / 100.0)))
 
     for label_index in range(len_neutral_labels):
         current_type = info["neutral_regions"][label_index]
@@ -112,11 +112,11 @@ def estimate_contrast_distribution(
         append_values(current_type)
 
     # Convert numpy integers back to normal integers
-    generation_labels = [num.item() for num in generation_labels]
-    min_prior_means = [num.item() for num in min_prior_means]
-    max_prior_means = [num.item() for num in max_prior_means]
-    min_prior_stds = [num.item() for num in min_prior_stds]
-    max_prior_stds = [num.item() for num in max_prior_stds]
+    generation_labels = [int(num) for num in generation_labels]
+    min_prior_means = [float(num) for num in min_prior_means]
+    max_prior_means = [float(num) for num in max_prior_means]
+    min_prior_stds = [float(num) for num in min_prior_stds]
+    max_prior_stds = [float(num) for num in max_prior_stds]
 
     return {
         "generation_labels": generation_labels,
@@ -258,11 +258,8 @@ class Options:
     output_dir: str = None
     """Output directory for the analysis result and the rescaled scan files."""
 
-    verbose: bool = False
-    """Print debugging messages"""
 
-
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_arguments(Options, "general")
@@ -290,8 +287,8 @@ if __name__ == '__main__':
                 exit(1)
 
     num_contrasts = len(options.scan_files)
-    clip_min_values = [None for i in range(num_contrasts)]
-    clip_max_values = [None for i in range(num_contrasts)]
+    clip_min_values = [None for _ in range(num_contrasts)]
+    clip_max_values = [None for _ in range(num_contrasts)]
 
     # Check if clip values match the number of scans.
     if len(options.clip_min) == num_contrasts:
@@ -323,7 +320,7 @@ if __name__ == '__main__':
     # Analyze each scan with the label image and collect the results.
     statistics = []
     for f in rescaled_contrast_images:
-        statistics.append(estimate_contrast_distribution(f, options.label_file, percent_deviation=5.0))
+        statistics.append(estimate_contrast_distribution(f, options.label_file, percent_deviation=10.0))
 
     import SynthSeg.brain_generator_options as gen
 
@@ -368,3 +365,7 @@ if __name__ == '__main__':
 
     # Write out the analysis result as a template brain generator config.
     gen_opts.save_yaml(os.path.join(options.output_dir, "generator.yml"), default_flow_style=None)
+
+
+if __name__ == '__main__':
+    main()
