@@ -60,8 +60,8 @@ def estimate_contrast_distribution(
     of the scan image. The idea behind this function is that you want to calculate the contrast statistics
     for each region specified by labels in `generation_labels`.
     The function will return a range for the mean and standard deviation of each region where the size of the range is
-    determined by `percent_deviation`. These values are later used for generating training data for SynthSeg where
-    the distribution of gray-values within a region is determined by randomly choosing a mean value from the range of
+    determined by `percent_deviation`. These values are later used for generating training data for SynthSeg.
+    The distribution of gray-values within a region is determined by randomly choosing a mean value from the range of
     mean values for the region and a randomly chosen standard deviation of each region.
 
     Args:
@@ -339,8 +339,8 @@ def main():
             gen_opts.prior_means = gen_opts.prior_means + stat["prior_means"]
             gen_opts.prior_stds = gen_opts.prior_stds + stat["prior_stds"]
 
-    # Now we have the following problem: While we can perfectly determine all the labels that were used in the provided
-    # segmentation, SynthSeg uses many more labels and needs definitions for them in order create synthetic images.
+    # Now we have the following problem: While we can perfectly determine all the labels used in the provided
+    # segmentation, SynthSeg uses many more labels and needs definitions for them to create synthetic images.
     # Right now, I don't have a good solution for that. What I will try out is to set unknown labels to background
     # so that they will have random background contrast and will not be used for the training.
     default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509, 511, 512, 514, 515, 516, 530, 2, 3,
