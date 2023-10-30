@@ -52,9 +52,9 @@ def clip_and_rescale_nifti(nifti_file: str,
 
 
 def estimate_contrast_distribution(
-        scan_file: str,
+        contrast_file: str,
         label_file: str,
-        percent_deviation: float = 5.0) -> dict:
+        equalize_regions: bool = True) -> dict:
     """
     Create contrast entries for given scan and label files where the label image should be a segmentation
     of the scan image. The idea behind this function is that you want to calculate the contrast statistics
@@ -65,9 +65,9 @@ def estimate_contrast_distribution(
     mean values for the region and a randomly chosen standard deviation of each region.
 
     Args:
-        scan_file (str): The file path of the scan.
+        contrast_file (str): The file path of the scan.
         label_file (str): The file path of the label.
-        percent_deviation (float, optional): The percentage deviation. Default is 5.0.
+        equalize_regions (bool): If true, the gray-level statistics of the left and right regions will be equalized.
 
     Returns:
         dict: With the entries "output_labels", "generation_classes", "prior_means", and "prior_stds". All are input
@@ -76,10 +76,10 @@ def estimate_contrast_distribution(
 
     import SynthSeg.analysis.freesurfer_tools as fsl_tools
 
-    info = analyze_scan_and_label(scan_file, label_file)
-    info = equalize_region_stats(info)
+    info = analyze_scan_and_label(contrast_file, label_file)
+    if equalize_regions:
+        info = equalize_region_stats(info)
     assert set(info.keys()) == {"left_regions", "neutral_regions", "right_regions", "labels"}
-    # labels = info["labels"]
 
     # Generate the `generation_labels` automatically by combining neutral labels, left labels, and right labels
     # in that order.
@@ -87,29 +87,52 @@ def estimate_contrast_distribution(
                          ["neutral_regions", "left_regions", "right_regions"] for i in info[name]]
     len_neutral_labels = len(info["neutral_regions"])
     len_left_labels = len(info["left_regions"])
+    len_right_labels = len(info["left_regions"])
+    assert len_right_labels == len_left_labels, "Different number of left and right regions."
+
     generation_classes_neutral = list(range(len_neutral_labels))
-    generation_classes_left = list(range(len_neutral_labels, len_neutral_labels + len_left_labels))
-    generation_classes = generation_classes_neutral + generation_classes_left + generation_classes_left
+
+    if equalize_regions:
+        generation_classes_left = list(range(len_neutral_labels, len_neutral_labels + len_left_labels))
+        generation_classes = generation_classes_neutral + generation_classes_left + generation_classes_left
+    else:
+        generation_classes_left = list(range(len_neutral_labels, len_neutral_labels + len_left_labels + len_right_labels))
+        generation_classes = generation_classes_neutral + generation_classes_left
+
     min_prior_means = []
     max_prior_means = []
     min_prior_stds = []
     max_prior_stds = []
 
-    def append_values(t: fsl_tools.TissueType):
-        mean = t.mean
-        std = t.std_dev
-        min_prior_means.append(max(0.0, mean * (1.0 - percent_deviation / 100.0)))
-        max_prior_means.append(min(255.0, mean * (1.0 + percent_deviation / 100.0)))
-        min_prior_stds.append(max(0.0, std * (1.0 - percent_deviation / 100.0)))
-        max_prior_stds.append(min(255.0, std * (1.0 + percent_deviation / 100.0)))
+    def calculate_and_append_statistic(t: fsl_tools.TissueType):
+        """
+            At this point, we need to decide from which values SynthSeg should randomly choose the gray-values for
+            a specific region.
+            The `TissueType` contains mean, std_dev and (10, 50, 90) percentiles of the data.
+            SynthSeg wants to draw a mean and std_dev for each region in every synthetic image and needs lower and
+            upper bounds for the values.
+            I suggest using the 10 and 90 percentiles for the lower and upper bound of the "mean" because this is
+            better, especially with the hot pixels in certain regions.
+            For randomly choosing a standard deviation, I think the measured std_dev could be the upper bound and
+            we just decrease the lower bound to let the network also see not so noisy data.
+        """
+        min_prior_means.append(max(0.0, t.perc_10))
+        max_prior_means.append(min(255.0, t.perc_90))
+        min_prior_stds.append(5.0)
+        max_prior_stds.append(min(255.0, t.std_dev))
 
     for label_index in range(len_neutral_labels):
         current_type = info["neutral_regions"][label_index]
-        append_values(current_type)
+        calculate_and_append_statistic(current_type)
 
     for label_index in range(len_left_labels):
         current_type = info["left_regions"][label_index]
-        append_values(current_type)
+        calculate_and_append_statistic(current_type)
+
+    if not equalize_regions:
+        for label_index in range(len_right_labels):
+            current_type = info["right_regions"][label_index]
+            calculate_and_append_statistic(current_type)
 
     # Convert numpy integers back to normal integers
     generation_labels = [int(num) for num in generation_labels]
@@ -245,18 +268,32 @@ class Options:
     label_file: str = None
     """The segmentation image with regions and labels according to FSL."""
 
-    scan_files: List[str] = field(default_factory=list)
+    contrast_files: List[str] = field(default_factory=list)
     """A list of n specific images with different contrast that are analysed.
      The label_file must be a segmentation of these images."""
 
+    rescale_contrasts: bool = True
+
     clip_min: List[float] = field(default_factory=list)
-    """A list of n minimum clip values for each provided scan file."""
+    """A list of n minimum clip values for each provided contrast image."""
 
     clip_max: List[float] = field(default_factory=list)
-    """A list of n maximum clip values for each provided scan file."""
+    """A list of n maximum clip values for each provided contrast image."""
 
     output_dir: str = None
-    """Output directory for the analysis result and the rescaled scan files."""
+    """Output directory for the analysis result and the rescaled contrast image."""
+
+    equalize_left_right_regions: bool = False
+    """
+    If true then equivalent regions in the left/right hemisphere will use the same gray-value distributions, 
+    even if they are different in the measured contrast images. 
+    """
+
+    template_generator_config: str = ""
+    """
+    Provides a template generator configuration that is used. All values are preserved except the ones necessary for
+    setting the segmentation labels and gray-value statistics.
+    """
 
 
 def main():
@@ -278,25 +315,25 @@ def main():
         logger.error(f"Segmentation image does not exist: '{options.label_file}'")
         exit(1)
 
-    if isinstance(options.scan_files, list):
-        for image_num, f in enumerate(options.scan_files):
+    if isinstance(options.contrast_files, list):
+        for image_num, f in enumerate(options.contrast_files):
             if isinstance(f, str) and os.path.isfile(f):
                 logger.debug(f"Using contrast image {image_num + 1}: '{f}'")
             else:
                 logger.error(f"Contrast image does not exist: '{f}'")
                 exit(1)
 
-    num_contrasts = len(options.scan_files)
+    num_contrasts = len(options.contrast_files)
     clip_min_values = [None for _ in range(num_contrasts)]
     clip_max_values = [None for _ in range(num_contrasts)]
 
-    # Check if clip values match the number of scans.
+    # Check if clip values match the number of images.
     if len(options.clip_min) == num_contrasts:
         clip_min_values = options.clip_min
     elif len(options.clip_min) == 0:
         logger.info("No min clip values provided. No clipping of values in the contrast images will happen.")
     else:
-        logger.error("Either provide no min clip values or exactly as many as there are scan files.")
+        logger.error("Either provide no min clip values or exactly as many as there are contrast files.")
         exit(1)
 
     if len(options.clip_max) == num_contrasts:
@@ -304,27 +341,39 @@ def main():
     elif len(options.clip_max) == 0:
         logger.info("No max clip values provided. No clipping of values in the contrast images will happen.")
     else:
-        logger.error("Either provide no max clip values or exactly as many as there are scan files.")
+        logger.error("Either provide no max clip values or exactly as many as there are contrast images.")
         exit(1)
 
-    # Window and rescale all scans and save them to the output directory.
+    # Window and rescale all images and save them to the output directory.
     rescaled_contrast_images = []
-    for image_num, f in enumerate(options.scan_files):
-        file_name = os.path.basename(f)
-        logger.info(f"Rescaling image {file_name}")
-        output_file_path = os.path.join(options.output_dir, file_name)
-        clip_and_rescale_nifti(f, output_file_path,
-                               min_clip=clip_min_values[image_num], max_clip=clip_max_values[image_num])
-        rescaled_contrast_images.append(output_file_path)
+    if options.rescale_contrasts:
+        for image_num, f in enumerate(options.contrast_files):
+            file_name = os.path.basename(f)
+            logger.info(f"Rescaling image {file_name}")
+            output_file_path = os.path.join(options.output_dir, file_name)
+            clip_and_rescale_nifti(f, output_file_path,
+                                   min_clip=clip_min_values[image_num], max_clip=clip_max_values[image_num])
+            rescaled_contrast_images.append(output_file_path)
+    else:
+        rescaled_contrast_images = options.contrast_files
 
-    # Analyze each scan with the label image and collect the results.
+    # Analyze each contrast with the label image and collect the results.
     statistics = []
     for f in rescaled_contrast_images:
-        statistics.append(estimate_contrast_distribution(f, options.label_file, percent_deviation=10.0))
+        statistics.append(
+            estimate_contrast_distribution(
+                f,
+                options.label_file,
+                equalize_regions=options.equalize_left_right_regions
+            )
+        )
 
     import SynthSeg.brain_generator_options as gen
 
     gen_opts = gen.GeneratorOptions()
+    if isinstance(options.template_generator_config, str) and os.path.isfile(options.output_dir):
+        gen_opts = gen.GeneratorOptions.load(options.template_generator_config)
+
     gen_opts.n_channels = len(statistics)
     gen_opts.use_specific_stats_for_channel = True
     gen_opts.generation_labels = statistics[0]["generation_labels"]
