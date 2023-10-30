@@ -25,6 +25,9 @@ class TissueType:
     segmentation_class: int = 0
     mean: float = 0.0
     std_dev: float = 0.0
+    perc_50: float = 0.0
+    perc_90: float = 0.0
+    perc_10: float = 0.0
 
 
 def get_free_surfer_lut() -> dict:
@@ -136,10 +139,15 @@ def generate_tissue_types_from_sample(scan_data: np.ndarray, segmentation_data: 
     seg_data = segmentation_data
     mask = seg_data == label
     data = scan_data[mask]
-    mean = np.mean(data)
-    std_dev = np.std(data)
     if label not in FSL_LUT.keys():
         print(f"Label number {label} not found in FSL lookup table. Using background for it!")
         label = 0
     lut_entry = FSL_LUT[label]
-    return TissueType(lut_entry, label, mean, std_dev)
+    return TissueType(
+        lut_entry, label,
+        mean=np.mean(data),
+        std_dev=np.std(data),
+        perc_50=np.percentile(data, 50),
+        perc_10=np.percentile(data, 10),
+        perc_90=np.percentile(data, 90)
+    )
