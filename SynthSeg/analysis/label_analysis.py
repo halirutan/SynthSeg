@@ -1,4 +1,5 @@
 import os
+import pathlib
 from typing import List, Optional
 import nibabel as nib
 import nibabel.processing as proc
@@ -119,7 +120,7 @@ def estimate_contrast_distribution(
         """
         min_prior_means.append(max(0.0, t.perc_10))
         max_prior_means.append(min(255.0, t.perc_90))
-        min_prior_stds.append(5.0)
+        min_prior_stds.append(1.0)
         max_prior_stds.append(min(255.0, t.std_dev))
 
     for label_index in range(len_neutral_labels):
@@ -290,7 +291,15 @@ class Options:
     even if they are different in the measured contrast images. 
     """
 
-    undefined_region_stats: List[float] = field(default_factory=lambda: [10.0, 250.0, 1.0, 10.0])
+    undefined_region_as_background: bool = True
+    """
+    If set to True, regions that where not found in the analysed segmentation will not be included in the training.
+    If set to False, each undefined region will have a random gray-level distribution in the synthetic map defined
+    by the undefined_region_stats option.
+    However, these unknown labels will not be used for calculating the loss of the segmentation.
+    """
+
+    undefined_region_stats: List[float] = field(default_factory=lambda: [25.0, 225.0, 5.0, 25.0])
     """
     Labels that are required for training but could not be found in the analysed scans need gray-level distributions
     as well.
@@ -370,6 +379,7 @@ def main():
     # Analyze each contrast with the label image and collect the results.
     statistics = []
     for f in rescaled_contrast_images:
+        logger.info(f"Calculate statistic for contrast in {os.path.basename(f)}")
         statistics.append(
             estimate_contrast_distribution(
                 f,
@@ -381,8 +391,11 @@ def main():
     import SynthSeg.brain_generator_options as gen
 
     gen_opts = gen.GeneratorOptions()
-    if isinstance(options.template_generator_config, str) and os.path.isfile(options.output_dir):
+    if isinstance(options.template_generator_config, str) and os.path.isfile(options.template_generator_config):
+        logger.info(f"Initialize generator config with values from {options.template_generator_config}")
         gen_opts = gen.GeneratorOptions.load(options.template_generator_config)
+    else:
+        logger.info("Initialize generator config with default values")
 
     gen_opts.n_channels = len(statistics)
     gen_opts.use_specific_stats_for_channel = True
@@ -405,35 +418,45 @@ def main():
     default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509, 511, 512, 514, 515, 516, 530, 2, 3,
                                  4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 25, 26, 28, 30, 136, 137, 41, 42, 43, 44, 46, 47,
                                  49, 50, 51, 52, 53, 54, 57, 58, 60, 62, 163, 164]
+    undefined_region = {}
 
-    if isinstance(options.undefined_region_stats, list) and len(options.undefined_region_stats) == 4:
-        undefined_region = {
-            "min_mean": options.undefined_region_stats[0],
-            "max_mean": options.undefined_region_stats[1],
-            "min_stddev": options.undefined_region_stats[2],
-            "max_stddev": options.undefined_region_stats[3]
-        }
+    if not options.undefined_region_as_background:
+        if isinstance(options.undefined_region_stats, list) and len(options.undefined_region_stats) == 4:
+            logger.info("Using random values for unknown labels in synthetic images")
+            undefined_region = {
+                "min_mean": options.undefined_region_stats[0],
+                "max_mean": options.undefined_region_stats[1],
+                "min_stddev": options.undefined_region_stats[2],
+                "max_stddev": options.undefined_region_stats[3]
+            }
+        else:
+            # Someone did not set the option undefined_region_stats correctly. Giving up
+            logger.error(f"When using option 'undefined_region_stats', it must be a list of 4 float values")
+            exit(1)
     else:
-        logger.error("Option 'undefined_region_stats' should be a list of 4 floats")
-        exit(1)
+        logger.info("Regarding unknown labels as background in the synthetic images")
 
     new_output_labels = []
     new_generation_classes = []
-    new_idx = max(gen_opts.output_labels) + 1
+    new_idx = max(gen_opts.generation_classes) + 1
     for label in default_synth_seg_classes:
         if label in gen_opts.generation_labels:
             idx = gen_opts.generation_labels.index(label)
             new_output_labels.append(label)
             new_generation_classes.append(gen_opts.generation_classes[idx])
         else:
-            new_output_labels.append(new_idx)
-            new_idx = new_idx + 1
-            new_generation_classes.append(0)
-            for i in range(gen_opts.n_channels):
-                gen_opts.prior_means[2 * i].append(undefined_region["min_mean"])
-                gen_opts.prior_means[2 * i + 1].append(undefined_region["max_mean"])
-                gen_opts.prior_stds[2 * i].append(undefined_region["min_stddev"])
-                gen_opts.prior_stds[2 * i + 1].append(undefined_region["max_stddev"])
+            if options.undefined_region_as_background:
+                new_output_labels.append(0)
+                new_generation_classes.append(0)
+            else:
+                new_output_labels.append(0)
+                new_generation_classes.append(new_idx)
+                new_idx = new_idx + 1
+                for i in range(gen_opts.n_channels):
+                    gen_opts.prior_means[2 * i].append(undefined_region["min_mean"])
+                    gen_opts.prior_means[2 * i + 1].append(undefined_region["max_mean"])
+                    gen_opts.prior_stds[2 * i].append(undefined_region["min_stddev"])
+                    gen_opts.prior_stds[2 * i + 1].append(undefined_region["max_stddev"])
 
     gen_opts.generation_labels = default_synth_seg_classes
     gen_opts.output_labels = new_output_labels
