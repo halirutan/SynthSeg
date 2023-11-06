@@ -96,7 +96,8 @@ def estimate_contrast_distribution(
         generation_classes_left = list(range(len_neutral_labels, len_neutral_labels + len_left_labels))
         generation_classes = generation_classes_neutral + generation_classes_left + generation_classes_left
     else:
-        generation_classes_left = list(range(len_neutral_labels, len_neutral_labels + len_left_labels + len_right_labels))
+        generation_classes_left = list(
+            range(len_neutral_labels, len_neutral_labels + len_left_labels + len_right_labels))
         generation_classes = generation_classes_neutral + generation_classes_left
 
     min_prior_means = []
@@ -289,6 +290,14 @@ class Options:
     even if they are different in the measured contrast images. 
     """
 
+    undefined_region_stats: List[float] = field(default_factory=lambda: [10.0, 250.0, 1.0, 10.0])
+    """
+    Labels that are required for training but could not be found in the analysed scans need gray-level distributions
+    as well.
+    Each of these regions will get a separate gray-level distribution, randomly drawn from the provided parameters
+    which are in the form [min_mean, max_mean, min_stddev, max_stddev].
+    """
+
     template_generator_config: str = ""
     """
     Provides a template generator configuration that is used. All values are preserved except the ones necessary for
@@ -296,6 +305,7 @@ class Options:
     """
 
 
+# noinspection PyUnresolvedReferences
 def main():
     parser = ArgumentParser()
     # noinspection PyTypeChecker
@@ -396,16 +406,34 @@ def main():
                                  4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 25, 26, 28, 30, 136, 137, 41, 42, 43, 44, 46, 47,
                                  49, 50, 51, 52, 53, 54, 57, 58, 60, 62, 163, 164]
 
+    if isinstance(options.undefined_region_stats, list) and len(options.undefined_region_stats) == 4:
+        undefined_region = {
+            "min_mean": options.undefined_region_stats[0],
+            "max_mean": options.undefined_region_stats[1],
+            "min_stddev": options.undefined_region_stats[2],
+            "max_stddev": options.undefined_region_stats[3]
+        }
+    else:
+        logger.error("Option 'undefined_region_stats' should be a list of 4 floats")
+        exit(1)
+
     new_output_labels = []
     new_generation_classes = []
+    new_idx = max(gen_opts.output_labels) + 1
     for label in default_synth_seg_classes:
         if label in gen_opts.generation_labels:
             idx = gen_opts.generation_labels.index(label)
             new_output_labels.append(label)
             new_generation_classes.append(gen_opts.generation_classes[idx])
         else:
-            new_output_labels.append(0)
+            new_output_labels.append(new_idx)
+            new_idx = new_idx + 1
             new_generation_classes.append(0)
+            for i in range(gen_opts.n_channels):
+                gen_opts.prior_means[2 * i].append(undefined_region["min_mean"])
+                gen_opts.prior_means[2 * i + 1].append(undefined_region["max_mean"])
+                gen_opts.prior_stds[2 * i].append(undefined_region["min_stddev"])
+                gen_opts.prior_stds[2 * i + 1].append(undefined_region["max_stddev"])
 
     gen_opts.generation_labels = default_synth_seg_classes
     gen_opts.output_labels = new_output_labels
