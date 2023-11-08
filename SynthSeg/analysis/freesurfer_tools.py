@@ -28,6 +28,8 @@ class TissueType:
     perc_50: float = 0.0
     perc_90: float = 0.0
     perc_10: float = 0.0
+    win_mean: float = 0.0
+    win_stddev: float = 0.0
 
 
 def get_free_surfer_lut() -> dict:
@@ -75,7 +77,7 @@ FSL_RIGHT_LABEL_REGEX = re.compile(r"^([Rr])ight[_-]|^ctx-(rh)-|^wm[_-](rh)[_-]|
 
 def substitute_left_right(match) -> str:
     """
-    Substitution from a left label name of a FSL regions to its right-sided counterpart.
+    Substitution from a left label name of an FSL region to its right-sided counterpart.
     For a usage example, see test_fsl_tools.py
 
     Args:
@@ -119,35 +121,3 @@ def substitute_right_left(match) -> str:
         return match.group().replace("_r", "_l")
     else:
         return match.group()
-
-
-def generate_tissue_types_from_sample(scan_data: np.ndarray, segmentation_data: np.ndarray, label: int) -> TissueType:
-    """
-    Takes an existing segmentation for a scan and calculates statistical values for the segmentation class of the given
-    `label`.
-    The segmentation is expected to have class-labels according to FreeSurfer's brain segmentations.
-
-    Args:
-        scan_data (np.ndarray): The original brain-scan or an MPM map like PD, T1, etc.
-        segmentation_data (np.ndarray): The segmentation of `scan_data`. Must have the same shape as `scan_data`.
-        label: The tissue class to calculate the statistics for.
-
-    Returns:
-        TissueType: Statistics of the region with additional FreeSurfer metadata.
-    """
-    scan_data = scan_data
-    seg_data = segmentation_data
-    mask = seg_data == label
-    data = scan_data[mask]
-    if label not in FSL_LUT.keys():
-        print(f"Label number {label} not found in FSL lookup table. Using background for it!")
-        label = 0
-    lut_entry = FSL_LUT[label]
-    return TissueType(
-        lut_entry, label,
-        mean=np.mean(data),
-        std_dev=np.std(data),
-        perc_50=np.percentile(data, 50),
-        perc_10=np.percentile(data, 10),
-        perc_90=np.percentile(data, 90)
-    )
