@@ -1,55 +1,18 @@
-import os
-import pathlib
-from typing import List, Optional
 import nibabel as nib
 import nibabel.processing as proc
 import numpy as np
 from os import listdir
 from os.path import isfile, join
 import re
-from dataclasses import dataclass, field
-import logging
-from simple_parsing import ArgumentParser
-import sys
 
+from SynthSeg.analysis.contrast_analysis import generate_tissue_types_from_sample
+from SynthSeg.logging_utils import get_logger
 
-def setup_logger():
-    our_logger = logging.getLogger("Analyse Label and Scan")
-    our_logger.setLevel(logging.DEBUG)
-    log_stdout_handler = logging.StreamHandler(sys.stdout)
-    log_formatter = logging.Formatter("%(levelname)s: %(message)s")
-    log_stdout_handler.setFormatter(log_formatter)
-    our_logger.addHandler(log_stdout_handler)
-    return our_logger
+logger = get_logger()
 
-
-# Global instance
-logger = setup_logger()
-
-
-def clip_and_rescale_nifti(nifti_file: str,
-                           out_file: str,
-                           min_clip: Optional[float] = None,
-                           max_clip: Optional[float] = None,
-                           min_out: float = 0.0,
-                           max_out: float = 255.0):
-    """
-    Windows and rescales the values in a NIfTI image to a specified range.
-    This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
-
-    Args:
-        nifti_file: The path to an existing NIfTI file to be rescaled.
-        out_file: The path to save the rescaled NIfTI file. Directory needs to exist.
-        min_clip: The minimum value to clip the data in the NIfTI file before rescaling.
-        max_clip: The maximum value to clip the data in the NIfTI file before rescaling.
-        min_out: The minimum value for rescaling the data. Default is 0.0.
-        max_out: The maximum value for rescaling the data. Default is 255.0.
-    """
-    img = nib.load(nifti_file)
-    data = img.get_fdata()
-    clipped_data = np.clip(data, min_clip, max_clip)
-    rescaled_data = min_out + ((clipped_data - min_clip) * (max_out - min_out)) / (max_clip - min_clip)
-    nib.save(nib.Nifti1Image(rescaled_data, img.affine, img.header), out_file)
+default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509, 511, 512, 514, 515, 516, 530, 2, 3,
+                             4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 25, 26, 28, 30, 136, 137, 41, 42, 43, 44, 46, 47,
+                             49, 50, 51, 52, 53, 54, 57, 58, 60, 62, 163, 164]
 
 
 def estimate_contrast_distribution(
@@ -76,6 +39,7 @@ def estimate_contrast_distribution(
     """
 
     import SynthSeg.analysis.freesurfer_tools as fsl_tools
+    from SynthSeg.analysis.contrast_analysis import equalize_region_stats
 
     info = analyze_scan_and_label(contrast_file, label_file)
     if equalize_regions:
@@ -115,7 +79,7 @@ def estimate_contrast_distribution(
             upper bounds for the values.
             I suggest using the 10 and 90 percentiles for the lower and upper bound of the "mean" because this is
             better, especially with the hot pixels in certain regions.
-            For randomly choosing a standard deviation, I think the measured std_dev could be the upper bound and
+            For randomly choosing a standard deviation, I think the measured std_dev could be the upper bound, and
             we just decrease the lower bound to let the network also see not so noisy data.
         """
         min_prior_means.append(max(0.0, t.perc_10))
@@ -170,7 +134,7 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
             - "left_regions": A sorted list of tissue types found in regions specific to the left side.
             - "right_regions": A sorted list of tissue types found in regions specific to the right side.
     """
-    import SynthSeg.analysis.freesurfer_tools as fsl_tools
+    import freesurfer_tools as fsl_tools
 
     label_img = nib.load(label_file)
     label_data = label_img.get_fdata()
@@ -181,7 +145,7 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
     resampled_labels_data = resampled_labels.get_fdata()
     labels = np.unique(label_data.flatten()).astype(np.int32)
     result = list(map(
-        lambda label: fsl_tools.generate_tissue_types_from_sample(scan_data, resampled_labels_data, label), labels
+        lambda label: generate_tissue_types_from_sample(scan_data, resampled_labels_data, label), labels
     ))
 
     left_regions = list(filter(lambda entry: re.match(fsl_tools.FSL_LEFT_LABEL_REGEX, entry.label.name), result))
@@ -198,36 +162,6 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
         "right_regions": right_regions,
         "labels": labels
     }
-
-
-def equalize_region_stats(regions_dict: dict) -> dict:
-    """
-    Equalizes the mean and standard deviation between corresponding left and right regions.
-    The input should be the dictionary that is returned by `analyseLabelScanPair`.
-    The reasoning here is that when creating training data, we don't want to have different random
-    distributions for corresponding left/right regions.
-
-    Args:
-        regions_dict (dict): A dictionary with keys: ['left_regions', 'neutral_regions', 'right_regions'].
-
-    Returns:
-        dict: The updated regions dictionary with equalized mean and standard deviation values.
-    """
-    assert set(regions_dict.keys()) == {"left_regions", "neutral_regions", "right_regions", "labels"}
-    left_regions = regions_dict["left_regions"]
-    right_regions = regions_dict["right_regions"]
-    assert len(left_regions) == len(right_regions)
-    for i in range(len(left_regions)):
-        left_name = left_regions[i].label.name
-        right_name = left_name.replace("Left-", "Right-").replace("ctx-lh", "ctx-rh")
-        assert right_regions[i].label.name == right_name
-        new_mean = 0.5 * (left_regions[i].mean + right_regions[i].mean)
-        new_std_dev = 0.5 * (left_regions[i].std_dev + right_regions[i].std_dev)
-        left_regions[i].mean = new_mean
-        right_regions[i].mean = new_mean
-        left_regions[i].std_dev = new_std_dev
-        right_regions[i].std_dev = new_std_dev
-    return regions_dict
 
 
 def list_available_labels_in_map(nifti_file: str) -> np.ndarray:
@@ -264,208 +198,3 @@ def find_all_available_labels(directory: str) -> np.ndarray:
         result = np.append(result, labels)
     return np.unique(result)
 
-
-@dataclass
-class Options:
-    label_file: str = None
-    """The segmentation image with regions and labels according to FSL."""
-
-    contrast_files: List[str] = field(default_factory=list)
-    """A list of n specific images with different contrast that are analysed.
-     The label_file must be a segmentation of these images."""
-
-    rescale_contrasts: bool = True
-
-    clip_min: List[float] = field(default_factory=list)
-    """A list of n minimum clip values for each provided contrast image."""
-
-    clip_max: List[float] = field(default_factory=list)
-    """A list of n maximum clip values for each provided contrast image."""
-
-    output_dir: str = None
-    """Output directory for the analysis result and the rescaled contrast image."""
-
-    equalize_left_right_regions: bool = False
-    """
-    If true then equivalent regions in the left/right hemisphere will use the same gray-value distributions, 
-    even if they are different in the measured contrast images. 
-    """
-
-    undefined_region_as_background: bool = True
-    """
-    If set to True, regions that where not found in the analysed segmentation will not be included in the training.
-    If set to False, each undefined region will have a random gray-level distribution in the synthetic map defined
-    by the undefined_region_stats option.
-    However, these unknown labels will not be used for calculating the loss of the segmentation.
-    """
-
-    undefined_region_stats: List[float] = field(default_factory=lambda: [25.0, 225.0, 5.0, 25.0])
-    """
-    Labels that are required for training but could not be found in the analysed scans need gray-level distributions
-    as well.
-    Each of these regions will get a separate gray-level distribution, randomly drawn from the provided parameters
-    which are in the form [min_mean, max_mean, min_stddev, max_stddev].
-    """
-
-    template_generator_config: str = ""
-    """
-    Provides a template generator configuration that is used. All values are preserved except the ones necessary for
-    setting the segmentation labels and gray-value statistics.
-    """
-
-
-# noinspection PyUnresolvedReferences
-def main():
-    parser = ArgumentParser()
-    # noinspection PyTypeChecker
-    parser.add_arguments(Options, "general")
-    args = parser.parse_args()
-    options: Options = args.general
-
-    if isinstance(options.output_dir, str) and os.path.isdir(options.output_dir):
-        logger.debug(f"Using output directory: '{options.output_dir}'")
-    else:
-        logger.error(f"Output directory does not exist: '{options.output_dir}'")
-        exit(1)
-
-    if isinstance(options.label_file, str) and os.path.isfile(options.label_file):
-        logger.debug(f"Segmentation image: '{options.label_file}'")
-    else:
-        logger.error(f"Segmentation image does not exist: '{options.label_file}'")
-        exit(1)
-
-    if isinstance(options.contrast_files, list):
-        for image_num, f in enumerate(options.contrast_files):
-            if isinstance(f, str) and os.path.isfile(f):
-                logger.debug(f"Using contrast image {image_num + 1}: '{f}'")
-            else:
-                logger.error(f"Contrast image does not exist: '{f}'")
-                exit(1)
-
-    num_contrasts = len(options.contrast_files)
-    clip_min_values = [None for _ in range(num_contrasts)]
-    clip_max_values = [None for _ in range(num_contrasts)]
-
-    # Check if clip values match the number of images.
-    if len(options.clip_min) == num_contrasts:
-        clip_min_values = options.clip_min
-    elif len(options.clip_min) == 0:
-        logger.info("No min clip values provided. No clipping of values in the contrast images will happen.")
-    else:
-        logger.error("Either provide no min clip values or exactly as many as there are contrast files.")
-        exit(1)
-
-    if len(options.clip_max) == num_contrasts:
-        clip_max_values = options.clip_max
-    elif len(options.clip_max) == 0:
-        logger.info("No max clip values provided. No clipping of values in the contrast images will happen.")
-    else:
-        logger.error("Either provide no max clip values or exactly as many as there are contrast images.")
-        exit(1)
-
-    # Window and rescale all images and save them to the output directory.
-    rescaled_contrast_images = []
-    if options.rescale_contrasts:
-        for image_num, f in enumerate(options.contrast_files):
-            file_name = os.path.basename(f)
-            logger.info(f"Rescaling image {file_name}")
-            output_file_path = os.path.join(options.output_dir, file_name)
-            clip_and_rescale_nifti(f, output_file_path,
-                                   min_clip=clip_min_values[image_num], max_clip=clip_max_values[image_num])
-            rescaled_contrast_images.append(output_file_path)
-    else:
-        rescaled_contrast_images = options.contrast_files
-
-    # Analyze each contrast with the label image and collect the results.
-    statistics = []
-    for f in rescaled_contrast_images:
-        logger.info(f"Calculate statistic for contrast in {os.path.basename(f)}")
-        statistics.append(
-            estimate_contrast_distribution(
-                f,
-                options.label_file,
-                equalize_regions=options.equalize_left_right_regions
-            )
-        )
-
-    import SynthSeg.brain_generator_options as gen
-
-    gen_opts = gen.GeneratorOptions()
-    if isinstance(options.template_generator_config, str) and os.path.isfile(options.template_generator_config):
-        logger.info(f"Initialize generator config with values from {options.template_generator_config}")
-        gen_opts = gen.GeneratorOptions.load(options.template_generator_config)
-    else:
-        logger.info("Initialize generator config with default values")
-
-    gen_opts.n_channels = len(statistics)
-    gen_opts.use_specific_stats_for_channel = True
-    gen_opts.generation_labels = statistics[0]["generation_labels"]
-    gen_opts.generation_classes = statistics[0]["generation_classes"]
-    gen_opts.n_neutral_labels = statistics[0]["n_neutral_labels"]
-    gen_opts.output_labels = statistics[0]["output_labels"]
-    gen_opts.prior_means = statistics[0]["prior_means"]
-    gen_opts.prior_stds = statistics[0]["prior_stds"]
-
-    if len(statistics) > 1:
-        for stat in statistics[1:]:
-            gen_opts.prior_means = gen_opts.prior_means + stat["prior_means"]
-            gen_opts.prior_stds = gen_opts.prior_stds + stat["prior_stds"]
-
-    # Now we have the following problem: While we can perfectly determine all the labels used in the provided
-    # segmentation, SynthSeg uses many more labels and needs definitions for them to create synthetic images.
-    # Right now, I don't have a good solution for that. What I will try out is to set unknown labels to background
-    # so that they will have random background contrast and will not be used for the training.
-    default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509, 511, 512, 514, 515, 516, 530, 2, 3,
-                                 4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 25, 26, 28, 30, 136, 137, 41, 42, 43, 44, 46, 47,
-                                 49, 50, 51, 52, 53, 54, 57, 58, 60, 62, 163, 164]
-    undefined_region = {}
-
-    if not options.undefined_region_as_background:
-        if isinstance(options.undefined_region_stats, list) and len(options.undefined_region_stats) == 4:
-            logger.info("Using random values for unknown labels in synthetic images")
-            undefined_region = {
-                "min_mean": options.undefined_region_stats[0],
-                "max_mean": options.undefined_region_stats[1],
-                "min_stddev": options.undefined_region_stats[2],
-                "max_stddev": options.undefined_region_stats[3]
-            }
-        else:
-            # Someone did not set the option undefined_region_stats correctly. Giving up
-            logger.error(f"When using option 'undefined_region_stats', it must be a list of 4 float values")
-            exit(1)
-    else:
-        logger.info("Regarding unknown labels as background in the synthetic images")
-
-    new_output_labels = []
-    new_generation_classes = []
-    new_idx = max(gen_opts.generation_classes) + 1
-    for label in default_synth_seg_classes:
-        if label in gen_opts.generation_labels:
-            idx = gen_opts.generation_labels.index(label)
-            new_output_labels.append(label)
-            new_generation_classes.append(gen_opts.generation_classes[idx])
-        else:
-            if options.undefined_region_as_background:
-                new_output_labels.append(0)
-                new_generation_classes.append(0)
-            else:
-                new_output_labels.append(0)
-                new_generation_classes.append(new_idx)
-                new_idx = new_idx + 1
-                for i in range(gen_opts.n_channels):
-                    gen_opts.prior_means[2 * i].append(undefined_region["min_mean"])
-                    gen_opts.prior_means[2 * i + 1].append(undefined_region["max_mean"])
-                    gen_opts.prior_stds[2 * i].append(undefined_region["min_stddev"])
-                    gen_opts.prior_stds[2 * i + 1].append(undefined_region["max_stddev"])
-
-    gen_opts.generation_labels = default_synth_seg_classes
-    gen_opts.output_labels = new_output_labels
-    gen_opts.generation_classes = new_generation_classes
-    gen_opts.n_neutral_labels = 18
-
-    # Write out the analysis result as a template brain generator config.
-    gen_opts.save_yaml(os.path.join(options.output_dir, "generator.yml"), default_flow_style=None)
-
-
-if __name__ == '__main__':
-    main()
