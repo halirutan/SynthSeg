@@ -2,8 +2,9 @@ from typing import Optional
 import numpy as np
 import nibabel as nib
 
+from SynthSeg.analysis.mpm_analysis import StatisticsOptions
 from SynthSeg.logging_utils import get_logger
-from freesurfer_tools import TissueType
+from SynthSeg.analysis.analysis_types import TissueType
 
 logger = get_logger()
 
@@ -38,14 +39,16 @@ def calculate_winsorized_statistics(data: np.ndarray, percentile: float) -> tupl
     from scipy.stats.mstats import winsorize
     cleaned = data
     if 0.0 < percentile < 0.5:
-        logger.info(f"Winsorize region data with {percentile}")
         cleaned = winsorize(data, limits=[percentile, percentile])
     else:
-        logger.info("Percentile value must be positive and < 0.5. Skipping this step")
+        logger.warning("Percentile value must be positive and < 0.5. Skipping this step")
     return np.mean(cleaned), np.std(cleaned)
 
 
-def generate_tissue_types_from_sample(scan_data: np.ndarray, segmentation_data: np.ndarray, label: int) -> TissueType:
+def generate_tissue_types_from_sample(scan_data: np.ndarray,
+                                      segmentation_data: np.ndarray,
+                                      label: int,
+                                      settings: StatisticsOptions) -> TissueType:
     """
     Takes an existing segmentation for a scan and calculates statistical values for the segmentation class of the given
     `label`.
@@ -55,6 +58,7 @@ def generate_tissue_types_from_sample(scan_data: np.ndarray, segmentation_data: 
         scan_data (np.ndarray): The original brain-scan or an MPM map like PD, T1, etc.
         segmentation_data (np.ndarray): The segmentation of `scan_data`. Must have the same shape as `scan_data`.
         label: The tissue class to calculate the statistics for.
+        settings: How to calculate the tissue statistics for the region.
 
     Returns:
         TissueType: Statistics of the region with additional FreeSurfer metadata.
@@ -64,23 +68,30 @@ def generate_tissue_types_from_sample(scan_data: np.ndarray, segmentation_data: 
     mask = seg_data == label
     data = scan_data[mask]
 
-    from SynthSeg.analysis.freesurfer_tools import FSL_LUT, TissueType
+    from SynthSeg.analysis.freesurfer_tools import FSL_LUT
 
     if label not in FSL_LUT.keys():
         print(f"Label number {label} not found in FSL lookup table. Using background for it!")
         label = 0
     lut_entry = FSL_LUT[label]
-    win_mean, win_stddev = calculate_winsorized_statistics(data, 0.1)
-    return TissueType(
-        lut_entry, label,
-        mean=np.mean(data),
-        std_dev=np.std(data),
-        perc_50=np.percentile(data, 50),
-        perc_10=np.percentile(data, 10),
-        perc_90=np.percentile(data, 90),
-        win_mean=win_mean,
-        win_stddev=win_stddev
-    )
+
+    if settings.method == "winsorized":
+        assert 0.0 < settings.parameter < 0.5, "Parameter setting for winsorized should be 0.0 < p < 0.5"
+        mean, stddev = calculate_winsorized_statistics(data, settings.parameter)
+    elif settings.method == "median":
+        mean = np.median(data)
+        q_high, q_low = np.percentile(data, [int(100 * settings.parameter), int(100*(1.0-settings.parameter))])
+        stddev = q_high - q_low
+    elif settings.method == "gaussian":
+        mean = np.mean(data)
+        stddev = np.std(data)
+    else:
+        logger.error(f"Unknown method '{settings.method}' for calculating the statistics.")
+        exit(1)
+
+    mean_range = [mean*settings.range_brackets[0], mean*settings.range_brackets[1]]
+    stddev_range = [stddev*settings.range_brackets[2], stddev*settings.range_brackets[3]]
+    return TissueType(lut_entry, label, mean_range=mean_range, stddev_range=stddev_range)
 
 
 def equalize_region_stats(regions_dict: dict) -> dict:
