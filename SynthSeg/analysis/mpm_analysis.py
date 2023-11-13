@@ -1,99 +1,18 @@
-from dataclasses import dataclass, field
-from typing import List, Optional
 import os
 from simple_parsing import ArgumentParser
 
 from SynthSeg.logging_utils import get_logger
+from SynthSeg.analysis.analysis_types import Options, StatisticsOptions
 
 logger = get_logger()
-
-
-@dataclass
-class Options:
-    label_file: str = None
-    """The segmentation image with regions and labels according to FSL."""
-
-    contrast_files: List[str] = field(default_factory=list)
-    """A list of n specific images with different contrast that are analysed.
-     The label_file must be a segmentation of these images."""
-
-    rescale_contrasts: bool = True
-
-    clip_min: List[float] = field(default_factory=list)
-    """A list of n minimum clip values for each provided contrast image."""
-
-    clip_max: List[float] = field(default_factory=list)
-    """A list of n maximum clip values for each provided contrast image."""
-
-    output_dir: str = None
-    """Output directory for the analysis result and the rescaled contrast image."""
-
-    equalize_left_right_regions: bool = False
-    """
-    If true then equivalent regions in the left/right hemisphere will use the same gray-value distributions, 
-    even if they are different in the measured contrast images. 
-    """
-
-    undefined_region_as_background: bool = True
-    """
-    If set to True, regions that where not found in the analysed segmentation will not be included in the training.
-    If set to False, each undefined region will have a random gray-level distribution in the synthetic map defined
-    by the undefined_region_stats option.
-    However, these unknown labels will not be used for calculating the loss of the segmentation.
-    """
-
-    undefined_region_stats: List[float] = field(default_factory=lambda: [25.0, 225.0, 5.0, 25.0])
-    """
-    Labels that are required for training but could not be found in the analysed scans need gray-level distributions
-    as well.
-    Each of these regions will get a separate gray-level distribution, randomly drawn from the provided parameters
-    which are in the form [min_mean, max_mean, min_stddev, max_stddev].
-    """
-
-    template_generator_config: str = ""
-    """
-    Provides a template generator configuration that is used. All values are preserved except the ones necessary for
-    setting the segmentation labels and gray-value statistics.
-    """
-
-# TODO: Make statistics options work
-@dataclass
-class StatisticsOptions:
-    """
-
-    """
-
-    method: str = "winsorized"
-    """
-    Defines how to calculate min/max for the Gaussian gray-level distribution from the data of each region.
-    Each method calculates an estimate for the mean and standard deviation of the data.
-    Possible values are "winsorized", "median", and "gaussian".
-    Method "winsorized" first filters the data by removing outliers up until a specified percentile and then calculates
-    the normal mean and standard deviation.
-    Method "median" calculates the median of the data and uses the interquartile range with of a specific percentile
-    to determine the standard deviation.
-    Method "gaussian" calculates the mean and standard deviation on the unfiltered region data. This might lead to bad
-    estimates if the data contains outliers or artefacts.
-    """
-
-    parameter: float = 0.9
-    """
-    Parameters for the different methods.
-    For method "winsorized", a value specifying the percentages to cut on each side of the data,
-    with respect to the number of unmasked data, as float between 0. and 1. Default 0.9.
-    For method "median", the percentile to use for the IQR. Default 0.9
-    For method "gaussian", this value is unused.
-    """
-
-    percentages: List[float] = field(default_factory=lambda: [0.95, 1.05, 0.5, 1.05])
-    """
-    """
 
 
 def main():
     parser = ArgumentParser()
     # noinspection PyTypeChecker
     parser.add_arguments(Options, "general")
+    # noinspection PyTypeChecker
+    parser.add_arguments(StatisticsOptions, "statistics")
     args = parser.parse_args()
     options: Options = args.general
 
@@ -158,12 +77,15 @@ def main():
     from SynthSeg.analysis.label_analysis import estimate_contrast_distribution
 
     statistics = []
-    for f in rescaled_contrast_images:
-        logger.info(f"Calculate statistic for contrast in {os.path.basename(f)}")
+    for i, f in enumerate(rescaled_contrast_images):
+        settings: StatisticsOptions = args.statistics
+        logger.info(f"Calculate '{settings.method}' statistic for contrast {i + 1} with parameter {settings.parameter} "
+                    f"and range bracket '{settings.range_brackets}.")
         statistics.append(
             estimate_contrast_distribution(
                 f,
                 options.label_file,
+                settings=args.statistics,
                 equalize_regions=options.equalize_left_right_regions
             )
         )
@@ -193,9 +115,8 @@ def main():
 
     # Now we have the following problem: While we can perfectly determine all the labels used in the provided
     # segmentation, SynthSeg uses many more labels and needs definitions for them to create synthetic images.
-    # Right now, I don't have a good solution for that. What I will try out is to set unknown labels to background
-    # so that they will have random background contrast and will not be used for the training.
-
+    # Right now, I don't have a good solution for that.
+    # I will provide two ways how to determine statistics for unknown regions.
     undefined_region = {}
 
     if not options.undefined_region_as_background:
@@ -218,6 +139,9 @@ def main():
     new_generation_classes = []
     new_idx = max(gen_opts.generation_classes) + 1
 
+    # Right now, we're using the default labels that SynthSeg needs.
+    # However, since these labels are defined as "all labels available in the training segmentation maps", this code
+    # needs to be adapted when we switch to a different set of training label maps.
     from SynthSeg.analysis.label_analysis import default_synth_seg_classes
 
     for label in default_synth_seg_classes:
@@ -226,6 +150,11 @@ def main():
             new_output_labels.append(label)
             new_generation_classes.append(gen_opts.generation_classes[idx])
         else:
+            # What happens if SynthSeg requires statistics about a label that we don't find in the given segmentation?
+            # Two ways: (1) regard them as the background and give them the same label id 0 and statistics of the
+            # measured background region.
+            # (2) Give each region a new gray value statistic that has a wide range so that the network essentially sees
+            # it as random noise but different from the real background.
             if options.undefined_region_as_background:
                 new_output_labels.append(0)
                 new_generation_classes.append(0)
@@ -248,7 +177,9 @@ def main():
     gen_opts.n_neutral_labels = 18
 
     # Write out the analysis result as a template brain generator config.
-    gen_opts.save_yaml(os.path.join(options.output_dir, "generator.yml"), default_flow_style=None)
+    output_file = os.path.join(options.output_dir, "generator.yml")
+    logger.info(f"Writing generator config to {output_file}")
+    gen_opts.save_yaml(output_file, default_flow_style=None)
 
 
 if __name__ == '__main__':

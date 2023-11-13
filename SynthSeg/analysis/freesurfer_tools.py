@@ -1,36 +1,8 @@
-from dataclasses import dataclass
 import numpy as np
 import os
 import re
 
-
-@dataclass
-class FreeSurferLUTEntry:
-    """
-    Singe entry from the FreeSurfer color map
-    """
-    name: str = "Unknown"
-    label: int = 0
-    rgba: np.ndarray = np.array([0.0, 0.0, 0.0, 0.0])
-
-
-@dataclass
-class TissueType:
-    """
-    Configuration for the synthesis of a single tissue type.
-    It contains all information about how one tissue type is
-    synthesized in the fake MRI images.
-    """
-    label: FreeSurferLUTEntry = FreeSurferLUTEntry()
-    segmentation_class: int = 0
-    mean: float = 0.0
-    std_dev: float = 0.0
-    perc_50: float = 0.0
-    perc_90: float = 0.0
-    perc_10: float = 0.0
-    win_mean: float = 0.0
-    win_stddev: float = 0.0
-
+from SynthSeg.analysis.analysis_types import FreeSurferLUTEntry
 
 def get_free_surfer_lut() -> dict:
     """

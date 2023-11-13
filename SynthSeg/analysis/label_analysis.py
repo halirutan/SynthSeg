@@ -7,6 +7,7 @@ import re
 
 from SynthSeg.analysis.contrast_analysis import generate_tissue_types_from_sample
 from SynthSeg.logging_utils import get_logger
+from SynthSeg.analysis.analysis_types import StatisticsOptions, TissueType
 
 logger = get_logger()
 
@@ -18,6 +19,7 @@ default_synth_seg_classes = [0, 14, 15, 16, 24, 72, 85, 502, 506, 507, 508, 509,
 def estimate_contrast_distribution(
         contrast_file: str,
         label_file: str,
+        settings: StatisticsOptions,
         equalize_regions: bool = True) -> dict:
     """
     Create contrast entries for given scan and label files where the label image should be a segmentation
@@ -25,23 +27,23 @@ def estimate_contrast_distribution(
     for each region specified by labels in `generation_labels`.
     The function will return a range for the mean and standard deviation of each region where the size of the range is
     determined by `percent_deviation`. These values are later used for generating training data for SynthSeg.
-    The distribution of gray-values within a region is determined by randomly choosing a mean value from the range of
+    The distribution of gray values within a region is determined by randomly choosing a mean value from the range of
     mean values for the region and a randomly chosen standard deviation of each region.
 
     Args:
         contrast_file (str): The file path of the scan.
         label_file (str): The file path of the label.
+        settings (StatisticsOptions): Settings for calculating the statistical values.
         equalize_regions (bool): If true, the gray-level statistics of the left and right regions will be equalized.
 
     Returns:
         dict: With the entries "output_labels", "generation_classes", "prior_means", and "prior_stds". All are input
-        arguments for SynthSeg's brain generator.
+        arguments for the SynthSeg brain generator.
     """
 
-    import SynthSeg.analysis.freesurfer_tools as fsl_tools
     from SynthSeg.analysis.contrast_analysis import equalize_region_stats
 
-    info = analyze_scan_and_label(contrast_file, label_file)
+    info = analyze_scan_and_label(contrast_file, label_file, settings)
     if equalize_regions:
         info = equalize_region_stats(info)
     assert set(info.keys()) == {"left_regions", "neutral_regions", "right_regions", "labels"}
@@ -70,7 +72,7 @@ def estimate_contrast_distribution(
     min_prior_stds = []
     max_prior_stds = []
 
-    def calculate_and_append_statistic(t: fsl_tools.TissueType):
+    def calculate_and_append_statistic(t: TissueType):
         """
             At this point, we need to decide from which values SynthSeg should randomly choose the gray-values for
             a specific region.
@@ -82,10 +84,10 @@ def estimate_contrast_distribution(
             For randomly choosing a standard deviation, I think the measured std_dev could be the upper bound, and
             we just decrease the lower bound to let the network also see not so noisy data.
         """
-        min_prior_means.append(max(0.0, t.perc_10))
-        max_prior_means.append(min(255.0, t.perc_90))
-        min_prior_stds.append(1.0)
-        max_prior_stds.append(min(255.0, t.std_dev))
+        min_prior_means.append(max(0.0, t.mean_range[0]))
+        max_prior_means.append(min(255.0, t.mean_range[1]))
+        min_prior_stds.append(max(0.0, t.stddev_range[0]))
+        max_prior_stds.append(min(255.0, t.stddev_range[1]))
 
     for label_index in range(len_neutral_labels):
         current_type = info["neutral_regions"][label_index]
@@ -116,7 +118,7 @@ def estimate_contrast_distribution(
         "prior_stds": [min_prior_stds, max_prior_stds]}
 
 
-def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
+def analyze_scan_and_label(scan_file: str, label_file: str, settings: StatisticsOptions) -> dict:
     """
     Calculates region statistics and information for a given scan and segmentation image pair.
     Scan and label images are not required to have the same resolution, but they need to represent the same view.
@@ -127,6 +129,7 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
     Args:
         scan_file: File path to the NIfTI scan file.
         label_file: File path to the NIfTI label file.
+        settings: Settings for calculating the region statistics
 
     Returns:
         A dictionary containing the analysis results of the label and scan pair. The dictionary has the following keys:
@@ -145,7 +148,7 @@ def analyze_scan_and_label(scan_file: str, label_file: str) -> dict:
     resampled_labels_data = resampled_labels.get_fdata()
     labels = np.unique(label_data.flatten()).astype(np.int32)
     result = list(map(
-        lambda label: generate_tissue_types_from_sample(scan_data, resampled_labels_data, label), labels
+        lambda label: generate_tissue_types_from_sample(scan_data, resampled_labels_data, label, settings), labels
     ))
 
     left_regions = list(filter(lambda entry: re.match(fsl_tools.FSL_LEFT_LABEL_REGEX, entry.label.name), result))
@@ -197,4 +200,3 @@ def find_all_available_labels(directory: str) -> np.ndarray:
         labels = list_available_labels_in_map(f)
         result = np.append(result, labels)
     return np.unique(result)
-
