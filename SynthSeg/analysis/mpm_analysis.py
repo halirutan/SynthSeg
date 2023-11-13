@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 import os
 from simple_parsing import ArgumentParser
 
@@ -54,6 +54,39 @@ class Options:
     """
     Provides a template generator configuration that is used. All values are preserved except the ones necessary for
     setting the segmentation labels and gray-value statistics.
+    """
+
+# TODO: Make statistics options work
+@dataclass
+class StatisticsOptions:
+    """
+
+    """
+
+    method: str = "winsorized"
+    """
+    Defines how to calculate min/max for the Gaussian gray-level distribution from the data of each region.
+    Each method calculates an estimate for the mean and standard deviation of the data.
+    Possible values are "winsorized", "median", and "gaussian".
+    Method "winsorized" first filters the data by removing outliers up until a specified percentile and then calculates
+    the normal mean and standard deviation.
+    Method "median" calculates the median of the data and uses the interquartile range with of a specific percentile
+    to determine the standard deviation.
+    Method "gaussian" calculates the mean and standard deviation on the unfiltered region data. This might lead to bad
+    estimates if the data contains outliers or artefacts.
+    """
+
+    parameter: float = 0.9
+    """
+    Parameters for the different methods.
+    For method "winsorized", a value specifying the percentages to cut on each side of the data,
+    with respect to the number of unmasked data, as float between 0. and 1. Default 0.9.
+    For method "median", the percentile to use for the IQR. Default 0.9
+    For method "gaussian", this value is unused.
+    """
+
+    percentages: List[float] = field(default_factory=lambda: [0.95, 1.05, 0.5, 1.05])
+    """
     """
 
 
