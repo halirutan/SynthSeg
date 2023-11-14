@@ -80,7 +80,7 @@ def main():
     for i, f in enumerate(rescaled_contrast_images):
         settings: StatisticsOptions = args.statistics
         logger.info(f"Calculate '{settings.method}' statistic for contrast {i + 1} with parameter {settings.parameter} "
-                    f"and range bracket '{settings.range_brackets}.")
+                    f"and range bracket '{settings.range_brackets}'.")
         statistics.append(
             estimate_contrast_distribution(
                 f,
