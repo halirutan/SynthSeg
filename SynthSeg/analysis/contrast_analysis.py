@@ -80,7 +80,7 @@ def generate_tissue_types_from_sample(scan_data: np.ndarray,
         mean, stddev = calculate_winsorized_statistics(data, settings.parameter)
     elif settings.method == "median":
         mean = np.median(data)
-        q_high, q_low = np.percentile(data, [int(100 * settings.parameter), int(100*(1.0-settings.parameter))])
+        q_high, q_low = np.percentile(data, [int(100 * (1.0 - settings.parameter)), int(100 * settings.parameter)])
         stddev = q_high - q_low
     elif settings.method == "gaussian":
         mean = np.mean(data)
