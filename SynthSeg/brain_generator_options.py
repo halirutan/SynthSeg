@@ -56,7 +56,7 @@ class GeneratorOptions(Serializable):
     n_channels: int = 1
     """Number of channels to be synthesised."""
 
-    target_res: Union[None, int, List[int], str] = None
+    target_res: Union[None, float, List[float], str] = None
     """
     Target resolution of the generated images and corresponding label maps.
     If None, the outputs will have the same resolution as the input label maps.
