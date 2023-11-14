@@ -5,6 +5,11 @@ from SynthSeg.analysis.analysis_types import StatisticsOptions
 
 
 def test_generate_tissue_types_from_sample():
+    """
+    The purpose of this test is to check if the provided statistical methods deliver reasonable values
+    when analyzing regions of a segmentation.
+    Specifically, we try to check if the robustness in the presence of very high/low artifact values is given.
+    """
     mean = 128.0
     std_dev = 32.0
     shape = (100, 100, 100)
