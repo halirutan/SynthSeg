@@ -2,11 +2,11 @@ from dataclasses import dataclass
 from simple_parsing.helpers.serialization import Serializable
 
 from .option_types import *
-from .option_utils import get_absolute_path
+from .options_base import OptionsBase
 
 
 @dataclass
-class TrainingOptions(Serializable):
+class TrainingOptions(Serializable, OptionsBase):
     labels_dir: str = "../../data/training_label_maps"
     """
     Path of folder with all input label maps, or to a single label map (if only one training example)
@@ -368,28 +368,32 @@ class TrainingOptions(Serializable):
     See https://www.tensorflow.org/guide/distributed_training for more information. 
     """
 
-    def with_absolute_paths(self, reference_file: str):
-        """
-        Adds absolute paths to specified file paths in the TrainingOptions object.
-        We just iterate through all properties and change the ones that are supposed to be paths.
+    @staticmethod
+    def get_np_list_options() -> List[str]:
+        return [
+            "generation_labels",
+            # "output_labels", TODO: David, why is that not in the training options?
+            "generation_classes",
+            "prior_means",
+            "prior_stds",
+            "input_shape",
+            "target_res",
+            "output_shape",
+            "thickness",
+            "data_res",
+            # "output_div_by_n", TODO: See above comment
+            "scaling_bounds",
+            "rotation_bounds",
+            "shearing_bounds",
+            "translation_bounds"
+        ]
 
-        Args:
-            reference_file (str): The reference file to be used for generating absolute paths.
-
-        Returns:
-            TrainingOptions: A copy of the TrainingOptions object with absolute paths added.
-        """
-        copy = TrainingOptions()
-        non_path_properties = [
+    @staticmethod
+    def get_non_path_string_options() -> List[str]:
+        return [
             "activation",
             "prior_distributions",
             "wandb_log_freq",
             "compression_type",
             "strategy"
         ]
-        for key, value in vars(self).items():
-            if isinstance(value, str) and key not in non_path_properties:
-                setattr(copy, key, get_absolute_path(value, reference_file))
-            else:
-                setattr(copy, key, value)
-        return copy
