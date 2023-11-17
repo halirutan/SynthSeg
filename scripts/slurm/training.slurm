@@ -17,20 +17,19 @@
 #
 #SBATCH --mail-type=none
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
-#SBATCH --time=00:15:00
+#SBATCH --time=00:10:00
 
-cfg_file=/ptmp/dcfidalgo/projects/cbs/segmentation/experiments/reproduce/train.yml
+cfg_file=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v1/config.yml
 
 module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
 source /raven/u/dcfidalgo/venvs/synthseg/bin/activate
 
-export PYTHONPATH=/raven/u/dcfidalgo/projects/cbs/segmentation/SynthSeg:$PYTHONPATH
 
 # in case WANDB is used set WANDB_BASE_URL and WANDB_API_KEY
 export WANDB_BASE_URL="http://10.186.1.194:80"
 export WANDB_API_KEY="local-3277de3bee22b1c6c3e074cfc1d73b7b169f5d41"
-export WANDB_PROJECT="synthseg_test"
-export WANDB_NAME="sunet_4gpu_bs16_pr2"
+export WANDB_PROJECT="synthseg"
+export WANDB_NAME="v1"
 
 # --- TF related flags (provided by Tim) ---
 

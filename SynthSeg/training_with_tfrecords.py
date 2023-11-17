@@ -36,6 +36,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         opts.wl2_epochs, opts.dice_epochs
     )
 
+    if opts.mixed_precision is True:
+        tf.keras.mixed_precision.set_global_policy("mixed_float16")
+
     # Define distributed strategy
     if opts.strategy == "null":
         strategy = NullStrategy()
@@ -210,7 +213,9 @@ def build_callbacks(
 
     # model saving callback
     save_file_name = os.path.join(output_dir, "%s_{epoch:03d}.h5" % metric_type)
-    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1)]
+    # save_weights_only=True is a workaround when training with mixed precision: https://github.com/keras-team/tf-keras/issues/203
+    # For now, setting this to true disables the posibility to train a model further, at least if we dont want to reinit the momentum ...
+    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=True)]
 
     # TensorBoard callback
     if metric_type == "dice":

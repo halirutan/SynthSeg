@@ -18,13 +18,11 @@
 #SBATCH --time=00:20:00
 
 
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/data/reproduce
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v1
 config_file=${output_dir}/config.yml
 
 module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
 source /raven/u/dcfidalgo/venvs/synthseg/bin/activate
-
-export PYTHONPATH=/raven/u/dcfidalgo/projects/cbs/segmentation/SynthSeg:$PYTHONPATH
 
 
 # --- TF related flags (provided by Tim) ---
@@ -49,8 +47,9 @@ srun python generation.py \
 --output_dir=${output_dir} \
 --config_file=${config_file} \
 --tfrecord \
---count=50 \
---start_int=$(($SLURM_ARRAY_TASK_ID*50)) \
+--count=100 \
+--start_int=$(($SLURM_ARRAY_TASK_ID*100)) \
 2>&1 | tee -a generation${SLURM_ARRAY_TASK_ID}.log
 
 kill $NVIDIASMI_PID
+
