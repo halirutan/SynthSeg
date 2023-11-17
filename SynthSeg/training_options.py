@@ -368,6 +368,11 @@ class TrainingOptions(Serializable):
     See https://www.tensorflow.org/guide/distributed_training for more information. 
     """
 
+    mixed_precision: bool = False
+    """
+    Use mixed precision?
+    """
+
     def with_absolute_paths(self, reference_file: str):
         """
         Adds absolute paths to specified file paths in the TrainingOptions object.
