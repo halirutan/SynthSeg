@@ -1,5 +1,6 @@
 import tensorflow as tf
 from typing import Tuple
+import numpy as np
 
 
 def unet(
@@ -31,8 +32,20 @@ def unet(
             x = tf.keras.layers.MaxPooling3D()(x)
 
     # decoder
-    for level in reversed(range(n_levels-1)):
+    for level in reversed(range(n_levels - 1)):
         x = tf.keras.layers.UpSampling3D()(x)
+
+        # Pad tensors, necessary if input shapes are not dividable by 2**n_levels
+        padding = np.array([[0, 0]] * len(x.shape))
+        for i, (dim_o, dim_i) in enumerate(
+            zip(x.shape[1:-1], skip_connections[level].shape[1:-1]), start=1
+        ):
+            if dim_o != dim_i:
+                diff = dim_i - dim_o
+                padding[i] = [diff // 2, diff - diff // 2]
+        if any(padding.flatten()):
+            x = tf.pad(x, padding)
+
         x = tf.keras.layers.Concatenate()([x, skip_connections[level]])
 
         lvl_feats = unet_feat_count * 2**level
