@@ -210,7 +210,7 @@ class GeneratorOptions(Serializable, OptionsBase):
 
     """
 
-    data_res: Union[None, int, List[int], str] = None
+    data_res: Union[None, float, List[float], str] = None
     """
     Specific acquisition resolution to mimic, as opposed to random resolution sampled
     when randomise_res is True. This triggers a blurring which mimics the acquisition resolution, but down-sampling
