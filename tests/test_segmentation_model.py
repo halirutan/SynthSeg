@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 from SynthSeg.training_options import TrainingOptions
 from SynthSeg.training_with_tfrecords import training
+from SynthSeg.segmentation_model import unet
 
 
 def test_unet_integration(tmp_path, tfrecord):
@@ -42,3 +43,13 @@ def test_unet_integration(tmp_path, tfrecord):
     new_losses = training(opts).history["loss"]
 
     np.testing.assert_allclose(new_losses, old_losses, rtol=0.01)
+
+
+def test_arbitrary_input_shapes():
+    tf.keras.utils.set_random_seed(43)
+    shape = (10, 19, 15)
+    model = unet((*shape, 1), n_labels=8, n_levels=3)
+    input_ar = np.random.rand(1, *shape, 1)
+    out = model(input_ar, training=False)
+
+    assert tuple(out.shape) == (1, *shape, 8)
