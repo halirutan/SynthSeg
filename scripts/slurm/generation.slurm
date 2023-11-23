@@ -15,10 +15,10 @@
 #
 #SBATCH --mail-type=none
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
-#SBATCH --time=00:15:00
+#SBATCH --time=00:10:00
 
 
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/test
 config_file=${output_dir}/config.yml
 
 module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
@@ -47,8 +47,8 @@ srun python generation.py \
 --output_dir=${output_dir} \
 --config_file=${config_file} \
 --tfrecord \
---count=100 \
---start_int=$(($SLURM_ARRAY_TASK_ID*100)) \
+--count=20 \
+--start_int=$(($SLURM_ARRAY_TASK_ID*20)) \
 2>&1 | tee -a generation${SLURM_ARRAY_TASK_ID}.log
 
 kill $NVIDIASMI_PID
