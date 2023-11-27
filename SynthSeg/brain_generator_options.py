@@ -1,4 +1,3 @@
-from __future__ import annotations
 from simple_parsing.helpers import Serializable
 from dataclasses import dataclass
 

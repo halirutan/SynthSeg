@@ -177,9 +177,9 @@ def main():
     gen_opts.n_neutral_labels = 18
 
     # Write out the analysis result as a template brain generator config.
-    output_file = os.path.join(options.output_dir, "generator.yml")
-    logger.info(f"Writing generator config to {output_file}")
-    gen_opts.save_yaml(output_file, default_flow_style=None)
+    output_file_generator = os.path.join(options.output_dir, "_generator.yml")
+    logger.info(f"Writing generator config to {output_file_generator}")
+    gen_opts.save_yaml(output_file_generator, default_flow_style=None)
 
 
 if __name__ == '__main__':
