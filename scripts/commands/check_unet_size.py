@@ -9,7 +9,7 @@ from simple_parsing import ArgumentParser
 from SynthSeg.training_options import TrainingOptions
 from ext.neuron import models as nrn_models
 from SynthSeg.logging_utils import get_logger
-from SynthSeg.option_utils import get_absolute_path, project_directory
+from SynthSeg.option_utils import get_absolute_path
 
 logger = get_logger(os.path.basename(__file__))
 

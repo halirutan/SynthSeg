@@ -1,5 +1,5 @@
 from simple_parsing.helpers.serialization import register_decoding_fn
-from typing import Union, List, Optional
+from typing import Union, List
 
 
 def decode_boolean_float_or_list(raw_value):
