@@ -1,9 +1,16 @@
 from simple_parsing.helpers.serialization import register_decoding_fn
-from typing import Optional, Union, List
+from typing import Union, List, Optional
 
 
 def decode_boolean_float_or_list(raw_value):
     if isinstance(raw_value, (float, bool, list)):
+        return raw_value
+    else:
+        raise RuntimeError(f"Could not decode JSON value {raw_value}")
+
+
+def decode_none_str_float_list(raw_value):
+    if isinstance(raw_value, (str, float, list)):
         return raw_value
     else:
         raise RuntimeError(f"Could not decode JSON value {raw_value}")
@@ -35,6 +42,7 @@ def decode_none_str_list(raw_value):
 
 
 register_decoding_fn(Union[bool, float, List[float]], decode_boolean_float_or_list)
+register_decoding_fn(Union[None, str, List[float], List[List[float]]], decode_none_str_float_list)
 register_decoding_fn(Union[bool, float, str], decode_float_str_bool)
 register_decoding_fn(Union[None, str, int, List[int]], decode_none_str_int_list)
 register_decoding_fn(Union[None, str, List[int]], decode_none_str_list)

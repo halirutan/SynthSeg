@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from simple_parsing.helpers.serialization import Serializable
 
+from .options_base import OptionsBase
 from .option_types import *
-from .option_utils import get_absolute_path
 
 
 @dataclass
-class TrainingOptions(Serializable):
+class TrainingOptions(Serializable, OptionsBase):
     labels_dir: str = "../../data/training_label_maps"
     """
     Path of folder with all input label maps, or to a single label map (if only one training example)
@@ -101,8 +101,7 @@ class TrainingOptions(Serializable):
     Can either be 'uniform', or 'normal'. Default is 'uniform'.
     """
 
-    # Todo: Check how easy it is to serialize and deserialize nested integer lists
-    prior_means: Union[None, str, List[List[float]]] = None
+    prior_means: Union[None, str, List[float], List[List[float]]] = None
     """
     Hyperparameters controlling the prior distributions of the GMM means. Because
     these prior distributions are uniform or normal, they require by 2 hyperparameters. Can be a path to:
@@ -118,7 +117,7 @@ class TrainingOptions(Serializable):
     Default is None, which corresponds all GMM means sampled from uniform distribution U(25, 225).
     """
 
-    prior_stds: Union[None, str, List[List[float]]] = None
+    prior_stds: Union[None, str, List[float], List[List[float]]] = None
     """
     same as prior_means but for the standard deviations of the GMM.
     Default is None, which corresponds to U(5, 25).
@@ -154,7 +153,7 @@ class TrainingOptions(Serializable):
     3) False, in which case scaling is completely turned off.
     """
 
-    rotation_bounds: Union[float, str, bool] = 15.0
+    rotation_bounds: Union[int, str, bool] = 15.0
     """
     Similar to scaling_bounds but for the rotation angle, except that for case 1 the
     bounds are centred on 0 rather than 1, i.e. (0+rotation_bounds[i], 0-rotation_bounds[i]).
@@ -373,28 +372,32 @@ class TrainingOptions(Serializable):
     Use mixed precision?
     """
 
-    def with_absolute_paths(self, reference_file: str):
-        """
-        Adds absolute paths to specified file paths in the TrainingOptions object.
-        We just iterate through all properties and change the ones that are supposed to be paths.
+    @staticmethod
+    def get_np_list_options() -> List[str]:
+        return [
+            "generation_labels",
+            # "output_labels", TODO: David, why is that not in the training options?
+            "generation_classes",
+            "prior_means",
+            "prior_stds",
+            "input_shape",
+            "target_res",
+            "output_shape",
+            "thickness",
+            "data_res",
+            # "output_div_by_n", TODO: See above comment
+            "scaling_bounds",
+            "rotation_bounds",
+            "shearing_bounds",
+            "translation_bounds"
+        ]
 
-        Args:
-            reference_file (str): The reference file to be used for generating absolute paths.
-
-        Returns:
-            TrainingOptions: A copy of the TrainingOptions object with absolute paths added.
-        """
-        copy = TrainingOptions()
-        non_path_properties = [
+    @staticmethod
+    def get_non_path_string_options() -> List[str]:
+        return [
             "activation",
             "prior_distributions",
             "wandb_log_freq",
             "compression_type",
             "strategy"
         ]
-        for key, value in vars(self).items():
-            if isinstance(value, str) and key not in non_path_properties:
-                setattr(copy, key, get_absolute_path(value, reference_file))
-            else:
-                setattr(copy, key, value)
-        return copy

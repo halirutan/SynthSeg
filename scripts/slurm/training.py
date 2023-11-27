@@ -26,8 +26,11 @@ def main():
     args = parser.parse_args()
 
     if args.cfg_file:
-        training_options = TrainingOptions.load(args.cfg_file)
-        training_options = training_options.with_absolute_paths(os.path.abspath(args.cfg_file))
+        training_options = (TrainingOptions
+                            .load(args.cfg_file)
+                            .convert_lists_to_numpy()
+                            .with_absolute_paths(os.path.abspath(args.cfg_file))
+                            )
     else:
         training_options = args.options
 

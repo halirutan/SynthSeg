@@ -1,14 +1,12 @@
-from __future__ import annotations
 from simple_parsing.helpers import Serializable
 from dataclasses import dataclass
-import numpy as np
 
 from .option_types import *
-from .option_utils import get_absolute_path
+from .options_base import OptionsBase
 
 
 @dataclass
-class GeneratorOptions(Serializable):
+class GeneratorOptions(Serializable, OptionsBase):
     """
     Options for synthesizing brain MRI images from label maps
     """
@@ -211,7 +209,7 @@ class GeneratorOptions(Serializable):
 
     """
 
-    data_res: Union[None, int, List[int], str] = None
+    data_res: Union[None, float, List[float], str] = None
     """
     Specific acquisition resolution to mimic, as opposed to random resolution sampled
     when randomise_res is True. This triggers a blurring which mimics the acquisition resolution, but down-sampling
@@ -249,33 +247,25 @@ class GeneratorOptions(Serializable):
     gradient (computed with Sobel kernels).
     """
 
-    def with_absolute_paths(self, reference_file: str):
-        """
-        Adds absolute paths to specified file paths in the GeneratorOptions object.
-        Since all string properties are supposed to be paths, we just iterate through all properties
-        and change the ones that are strings.
+    @staticmethod
+    def get_np_list_options() -> List[str]:
+        return [
+            "generation_labels",
+            "output_labels",
+            "generation_classes",
+            "target_res",
+            "prior_means",
+            "prior_stds",
+            "output_shape",
+            "thickness",
+            "data_res",
+            "output_div_by_n",
+            "scaling_bounds",
+            "rotation_bounds",
+            "shearing_bounds",
+            "translation_bounds"
+        ]
 
-        Args:
-            reference_file (str): The reference file to be used for generating absolute paths.
-
-        Returns:
-            GeneratorOptions: A copy of the GeneratorOptions object with absolute paths added.
-        """
-        copy = GeneratorOptions()
-        excluded_properties = ["prior_distributions"]
-        for key, value in vars(self).items():
-            if isinstance(value, str) and key not in excluded_properties:
-                setattr(copy, key, get_absolute_path(value, reference_file))
-            else:
-                setattr(copy, key, value)
-        return copy
-
-    def convert_lists_to_numpy(self):
-        copy = GeneratorOptions()
-        np_properties = ["generation_labels", "output_labels", "generation_classes", "prior_means", "prior_stds"]
-        for key, value in vars(self).items():
-            if key in np_properties and isinstance(value, list):
-                setattr(copy, key, np.array(value))
-            else:
-                setattr(copy, key, value)
-        return copy
+    @staticmethod
+    def get_non_path_string_options() -> List[str]:
+        return ["prior_distributions"]
