@@ -9,6 +9,28 @@ from SynthSeg.analysis.analysis_types import TissueType
 logger = get_logger()
 
 
+def clip_and_rescale_intensity(data: np.ndarray,
+                               min_clip: Optional[float] = None,
+                               max_clip: Optional[float] = None,
+                               min_out: Optional[float] = 0.0,
+                               max_out: Optional[float] = 255.0) -> np.ndarray:
+    """
+    Windows and rescales image intensities to a specified range.
+    This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
+
+    Args:
+        data: Numpy array to be rescaled.
+        min_clip: The minimum value to clip the data in the NIfTI file before rescaling.
+        max_clip: The maximum value to clip the data in the NIfTI file before rescaling.
+        min_out: The minimum value for rescaling the data. Default is 0.0.
+        max_out: The maximum value for rescaling the data. Default is 255.0.
+    """
+    clipped_data = np.clip(data, min_clip, max_clip)
+    min_out = min_out if min_out is not None else np.min(clipped_data)
+    max_out = max_out if max_out is not None else np.max(clipped_data)
+    return min_out + ((clipped_data - min_clip) * (max_out - min_out)) / (max_clip - min_clip)
+
+
 def clip_and_rescale_nifti(nifti_file: str,
                            out_file: str,
                            min_clip: Optional[float] = None,
@@ -17,6 +39,7 @@ def clip_and_rescale_nifti(nifti_file: str,
                            max_out: float = 255.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
+    Wrapper around the `clip_and_rescale_intensity` function.
     This function helps if you want to prepare an image that contains outliers in, e.g., noisy regions.
 
     Args:
@@ -29,13 +52,12 @@ def clip_and_rescale_nifti(nifti_file: str,
     """
     img = nib.load(nifti_file)
     data = img.get_fdata()
-    clipped_data = np.clip(data, min_clip, max_clip)
-    rescaled_data = min_out + ((clipped_data - min_clip) * (max_out - min_out)) / (max_clip - min_clip)
-    nib.save(nib.Nifti1Image(rescaled_data, img.affine, img.header), out_file)
+    nib.save(nib.Nifti1Image(
+        clip_and_rescale_intensity(data, min_clip, max_clip, min_out, max_out),
+        img.affine, img.header), out_file)
 
 
 def calculate_winsorized_statistics(data: np.ndarray, percentile: float) -> tuple[float, float]:
-
     from scipy.stats.mstats import winsorize
     cleaned = data
     if 0.0 < percentile < 0.5:
@@ -89,8 +111,8 @@ def generate_tissue_types_from_sample(scan_data: np.ndarray,
         logger.error(f"Unknown method '{settings.method}' for calculating the statistics.")
         exit(1)
 
-    mean_range = [mean*settings.range_brackets[0], mean*settings.range_brackets[1]]
-    stddev_range = [stddev*settings.range_brackets[2], stddev*settings.range_brackets[3]]
+    mean_range = [mean * settings.range_brackets[0], mean * settings.range_brackets[1]]
+    stddev_range = [stddev * settings.range_brackets[2], stddev * settings.range_brackets[3]]
     return TissueType(lut_entry, label, mean_range=mean_range, stddev_range=stddev_range)
 
 
