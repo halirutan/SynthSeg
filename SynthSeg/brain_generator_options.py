@@ -1,5 +1,6 @@
 from simple_parsing.helpers import Serializable
 from dataclasses import dataclass
+from typing import Optional
 
 from .option_types import *
 from .options_base import OptionsBase
