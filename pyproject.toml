@@ -16,7 +16,7 @@ build-backend = "poetry.core.masonry.api"
 name = "SynthSeg"
 version = "2023.1.0"
 description = "Contrast-agnostic segmentation of MRI scans"
-authors = ["B. Billot"]
+authors = ["B. Billot, Patrick Scheibe, David Carreto Fidalgo"]
 packages = [
     { include = "SynthSeg" },
     { include = "lab2im", from="ext" },
@@ -34,3 +34,4 @@ synthSeg-predict = "scripts.commands.SynthSeg_predict:main"
 synthSeg-training = "scripts.commands.training:main"
 synthSeg-training-supervised = "scripts.commands.training_supervised:main"
 synthSeg-generate-synth-images = "scripts.slurm.generation:main"
+synthSeg-tfrecord-to-nifty = "scripts.commands.tfrecord_to_nifti:main"

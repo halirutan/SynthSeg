@@ -81,6 +81,7 @@ def _generate_tfrecord(
     brain_generator: "SynthSeg.brain_generator.BrainGenerator",
     output_path: Path,
     file_name: str,
+    batch_size: int = 1
 ):
     """Helper class to generate and save a TFRecord for training.
 
@@ -88,11 +89,12 @@ def _generate_tfrecord(
         brain_generator: An instance of the `SynthSeg.brain_generator.BrainGenerator`.
         output_path: Path to the output directory. We will create the subdirectory `tfrecords`.
         file_name: Name of the output file. We will suffix it with `.tfrecord`.
+        batch_size: Number of training pairs to put into one tfrecord file.
     """
     output_path /= "tfrecords"
     output_path.mkdir(parents=True, exist_ok=True)
 
-    brain_generator.generate_tfrecord(output_path / f"{file_name}.tfrecord")
+    brain_generator.generate_tfrecord(output_path / f"{file_name}.tfrecord", batch_size=batch_size)
 
 
 def main():
@@ -140,7 +142,17 @@ def main():
 
     if general_params.count <= 0:
         logger.error(f"Number of training pairs to generate must be positive but was {general_params.count}.")
-        exit(0)
+        exit(-1)
+
+    tf_records_batch_size = 1
+    if generator_config.batchsize > 1 and generator_config.n_channels > 1:
+        if general_params.tfrecord is not True:
+            logger.warning("Multi-channel images combined with a batch size greater than 1 leads to wrong Nifi images. "
+                           "Consider storing them as tfrecords where we handle things appropriately.")
+        else:
+            # For tfrecords, we will set the generator batch size to one and create the minibatch ourselves
+            tf_records_batch_size = generator_config.batchsize
+            generator_config.batchsize = 1
 
     from SynthSeg.brain_generator import create_brain_generator
     generator = create_brain_generator(generator_config)
@@ -150,7 +162,7 @@ def main():
         file_number = str(i).zfill(6)
 
         if general_params.tfrecord:
-            _generate_tfrecord(generator, Path(output_dir), file_number)
+            _generate_tfrecord(generator, Path(output_dir), file_number, tf_records_batch_size)
         else:
             _generate_image_label_pair(generator, Path(output_dir), file_number)
 
