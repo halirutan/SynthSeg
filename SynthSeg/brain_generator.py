@@ -346,7 +346,7 @@ class BrainGenerator:
         return image, labels
 
     def generate_tfrecord(
-        self, file: Union[str, Path], compression_type: str = ""
+        self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
     ) -> Path:
         """Generate data for the `training_with_tfrecords` module.
 
@@ -355,6 +355,7 @@ class BrainGenerator:
         Args:
             file: Path to the output file. We will add a '.tfrecord' extension if not specified.
             compression_type: One of "GZIP", "ZLIB" or "" (no compression).
+            batch_size: Number of training pairs to put into one tfrecord file.
 
         Returns:
             Absolute path to the output file.
@@ -365,10 +366,17 @@ class BrainGenerator:
         if file.suffix != ".tfrecord":
             file = file.parent / (file.name + ".tfrecord")
 
+        assert batch_size >= 1, "Batch size must be a positive integer"
+
         output_labels = np.unique(self.output_labels)
 
-        model_inputs = next(self.model_inputs_generator)
-        images, labelss = self.labels_to_image_model.predict(model_inputs)
+        images = []
+        labelss = []
+        for batch in range(batch_size):
+            model_inputs = next(self.model_inputs_generator)
+            tmp_image, tmp_label = self.labels_to_image_model.predict(model_inputs)
+            images.append(tmp_image)
+            labelss.append(tmp_label)
 
         with tf.io.TFRecordWriter(
             str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
