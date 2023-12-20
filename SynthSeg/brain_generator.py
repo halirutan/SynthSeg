@@ -375,8 +375,8 @@ class BrainGenerator:
         for batch in range(batch_size):
             model_inputs = next(self.model_inputs_generator)
             tmp_image, tmp_label = self.labels_to_image_model.predict(model_inputs)
-            images.append(tmp_image)
-            labelss.append(tmp_label)
+            images.append(tmp_image[0])
+            labelss.append(tmp_label[0])
 
         with tf.io.TFRecordWriter(
             str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
