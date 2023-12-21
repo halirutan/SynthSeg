@@ -65,13 +65,13 @@ def main():
         file_name = os.path.basename(tfrecord_file).rsplit('.', 1)[0] + f"_{i}"
         logger.info(f"Exporting image {i}: {file_name}")
         utils.save_volume(
-            np.squeeze(image, axis=0),
+            image,
             None,
             None,
             str(image_output_path / f"{file_name}.nii.gz"),
         )
         utils.save_volume(
-            np.squeeze(labels, axis=0),
+            labels,
             None,
             None,
             str(labels_output_path / f"{file_name}.nii.gz"),
