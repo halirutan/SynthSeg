@@ -118,7 +118,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         results = wl2_model.fit(
             dataset,
             epochs=opts.wl2_epochs,
-            steps_per_epoch=opts.steps_per_epoch,
+            steps_per_epoch=opts.steps_per_epoch or None,
             callbacks=callbacks,
         )
 
@@ -152,7 +152,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         results = dice_model.fit(
             dataset,
             epochs=opts.dice_epochs,
-            steps_per_epoch=opts.steps_per_epoch,
+            steps_per_epoch=opts.steps_per_epoch or None,
             callbacks=callbacks,
             initial_epoch=init_epoch,
         )
