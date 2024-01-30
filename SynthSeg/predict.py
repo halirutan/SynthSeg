@@ -59,7 +59,8 @@ def predict(path_images,
             list_correct_labels=None,
             compute_distances=False,
             recompute=True,
-            verbose=True):
+            verbose=True,
+            use_original_unet=True):
     """
     This function uses trained models to segment images.
     It is crucial that the inputs match the architecture parameters of the trained model.
@@ -162,7 +163,8 @@ def predict(path_images,
                       activation=activation,
                       sigma_smoothing=sigma_smoothing,
                       flip_indices=flip_indices,
-                      gradients=gradients)
+                      gradients=gradients,
+                      use_original_unet=use_original_unet)
 
     # set cropping/padding
     if (cropping is not None) & (min_pad is not None):
@@ -435,7 +437,8 @@ def build_model(path_model,
                 activation,
                 sigma_smoothing,
                 flip_indices,
-                gradients):
+                gradients,
+                use_original_unet):
 
     assert os.path.isfile(path_model), "The provided model path does not exist."
 
@@ -451,16 +454,41 @@ def build_model(path_model,
         net = None
 
     # build UNet
-    net = nrn_models.unet(input_model=net,
-                          input_shape=input_shape,
-                          nb_labels=n_labels_seg,
-                          nb_levels=n_levels,
-                          nb_conv_per_level=nb_conv_per_level,
-                          conv_size=conv_size,
-                          nb_features=unet_feat_count,
-                          feat_mult=feat_multiplier,
-                          activation=activation,
-                          batch_norm=-1)
+    # net = nrn_models.unet(input_model=net,
+    #                       input_shape=input_shape,
+    #                       nb_labels=n_labels_seg,
+    #                       nb_levels=n_levels,
+    #                       nb_conv_per_level=nb_conv_per_level,
+    #                       conv_size=conv_size,
+    #                       nb_features=unet_feat_count,
+    #                       feat_mult=feat_multiplier,
+    #                       activation=activation,
+    #                       batch_norm=-1)
+
+    if use_original_unet:
+        net = nrn_models.unet(
+            input_shape=input_shape,
+            nb_labels=n_labels_seg,
+            nb_levels=n_levels,
+            nb_conv_per_level=nb_conv_per_level,
+            conv_size=conv_size,
+            nb_features=unet_feat_count,
+            feat_mult=feat_multiplier,
+            activation=activation,
+            batch_norm=-1,
+        )
+    else:
+        import SynthSeg.segmentation_model
+        net = SynthSeg.segmentation_model.unet(
+            input_shape=input_shape,
+            n_labels=n_labels_seg,
+            unet_feat_count=unet_feat_count,
+            conv_size=conv_size,
+            n_levels=n_levels,
+            nb_conv_per_level=nb_conv_per_level,
+            activation=activation,
+        )
+
     net.load_weights(path_model, by_name=True)
 
     # smooth posteriors if specified
