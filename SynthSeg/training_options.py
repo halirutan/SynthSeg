@@ -368,6 +368,10 @@ class TrainingOptions(Serializable, OptionsBase):
     See https://www.tensorflow.org/guide/distributed_training for more information. 
     """
 
+    scaling_type: str = "weak"
+
+    find_last_checkpoint: bool = True
+
     mixed_precision: bool = False
     """
     Use mixed precision?
@@ -400,5 +404,7 @@ class TrainingOptions(Serializable, OptionsBase):
             "prior_distributions",
             "wandb_log_freq",
             "compression_type",
-            "strategy"
+            "strategy", 
+            "scaling_type",
+            "find_last_checkpoint"
         ]
