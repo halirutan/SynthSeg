@@ -7,7 +7,7 @@ from pathlib import Path
 
 from time import perf_counter
 import pandas as pd
-
+import glob
 import tensorflow as tf
 
 from ext.lab2im import layers
@@ -73,7 +73,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
 
-    num_gpu  = strategy.num_replicas_in_sync if opts.strategy != "none" is not None else len(tf.config.list_physical_devices('GPU'))
+    num_gpu  = strategy.num_replicas_in_sync if opts.strategy != "none" else len(tf.config.list_physical_devices('GPU'))
     
     if opts.scaling_type == "strong" and strategy is not None:
             steps_per_epoch  = opts.steps_per_epoch//num_gpu
@@ -219,13 +219,16 @@ def load_model(
                 for (key, value) in getmembers(nrn_layers, isclass)
                 if key != "Layer"
             }
+
             custom_objects = {
                 **custom_l2i,
                 **custom_nrn,
                 "tf": tf,
                 "keras": tf.keras,
                 "loss": IdentityLoss().loss,
+                "DiceLoss": DiceLoss
             }
+            # print(custom_objects)
             model = tf.keras.models.load_model(
                 checkpoint, custom_objects=custom_objects
             )
