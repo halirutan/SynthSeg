@@ -1,5 +1,5 @@
-BootStrap: localimage
-From: nvidia_tensorflow_init.sif
+BootStrap: docker
+From: nvcr.io/nvidia/tensorflow:23.12-tf2-py3
 
 %post
 
