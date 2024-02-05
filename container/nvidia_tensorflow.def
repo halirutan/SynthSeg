@@ -1,0 +1,30 @@
+BootStrap: localimage
+From: nvidia_tensorflow_init.sif
+
+%post
+
+pip install -r /opt/requirements.txt
+
+%environment
+
+# export PYTHONPATH=$HOME/Projects/SynthSeg:$PYTHONPATH
+# Avoid CUPTI warning message
+export LD_LIBRARY_PATH=${CUDA_HOME}/extras/CUPTI/lib64:${LD_LIBRARY_PATH}
+export TF_FORCE_GPU_ALLOW_GROWTH=true
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_HOME}"
+# enable autoclustering for CPU and GPU
+export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
+
+%files
+requirements_container.txt /opt/requirements.txt
+
+%runscript
+
+%labels
+  author Nastassya Horlava
+  version 1.0
+
+%help
+  The converted Docker image for NVIDIAs Tensorflow (version 2.14).
+
+%test
