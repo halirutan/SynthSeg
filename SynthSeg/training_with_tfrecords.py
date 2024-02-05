@@ -5,6 +5,9 @@ from contextlib import nullcontext
 from inspect import getmembers, isclass
 from pathlib import Path
 
+from time import perf_counter
+import pandas as pd
+
 import tensorflow as tf
 
 from ext.lab2im import layers
@@ -40,6 +43,8 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
 
     # Define distributed strategy
+    print(f"Using {opts.strategy} strategy")
+    
     if opts.strategy == "null":
         strategy = NullStrategy()
     elif opts.strategy == "mirrored":
@@ -66,8 +71,20 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         input_shape = (input_shape, input_shape, input_shape, 1)
 
     checkpoint = opts.checkpoint
+    find_last_checkpoint = opts.find_last_checkpoint
+
+    num_gpu  = strategy.num_replicas_in_sync if opts.strategy != "none" is not None else len(tf.config.list_physical_devices('GPU'))
+    
+    if opts.scaling_type == "strong" and strategy is not None:
+            steps_per_epoch  = opts.steps_per_epoch//num_gpu
+            print(f"Number of steps per epoch was scaled to {opts.steps_per_epoch}")
+    elif opts.scaling_type ==" weak" and strategy is not None: 
+        steps_per_epoch = opts.steps_per_epoch
+    else: 
+        steps_per_epoch = opts.steps_per_epoch
 
     # Define and compile model
+        
     with strategy.scope():
         # prepare the segmentation model
         if opts.use_original_unet:
@@ -103,6 +120,10 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                 optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
                 loss=WeightedL2Loss(n_labels=opts.n_labels),
             )
+    
+
+    print(opts.__dict__)
+    print("Strategy ", strategy, " gpu: ", num_gpu, "steps_per_epoch ",  steps_per_epoch)
 
     results = None
     if opts.wl2_epochs > 0:
@@ -112,14 +133,18 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wandb=opts.wandb,
             wandb_log_freq=opts.wandb_log_freq,
             training_opts=opts,
+            num_gpu =num_gpu, 
+            steps_per_epoch=steps_per_epoch
+
         )
 
         # fit
         results = wl2_model.fit(
             dataset,
             epochs=opts.wl2_epochs,
-            steps_per_epoch=opts.steps_per_epoch or None,
+            steps_per_epoch=steps_per_epoch or None,
             callbacks=callbacks,
+            
         )
 
         if opts.wandb:
@@ -128,12 +153,14 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wandb.finish()
 
         checkpoint = output_dir / ("wl2_%03d.h5" % opts.wl2_epochs)
+        find_last_checkpoint = False
 
     if opts.dice_epochs > 0:
+        
         with strategy.scope():
             # fine-tuning with dice metric
             dice_model, is_compiled, init_epoch = load_model(
-                model=unet_model, checkpoint=checkpoint, metric_type="dice"
+                model=unet_model, checkpoint=checkpoint, metric_type="dice", find_last_checkpoint = find_last_checkpoint
             )
             if not is_compiled:
                 dice_model.compile(
@@ -147,12 +174,14 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wandb=opts.wandb,
             wandb_log_freq=opts.wandb_log_freq,
             training_opts=opts,
+            num_gpu =num_gpu, 
+            steps_per_epoch=steps_per_epoch
         )
 
         results = dice_model.fit(
             dataset,
             epochs=opts.dice_epochs,
-            steps_per_epoch=opts.steps_per_epoch or None,
+            steps_per_epoch=steps_per_epoch or None,
             callbacks=callbacks,
             initial_epoch=init_epoch,
         )
@@ -165,11 +194,18 @@ def load_model(
     checkpoint: Path,
     metric_type: str,
     reinitialise_momentum: bool = False,
+    find_last_checkpoint: bool = True
 ) -> Tuple[tf.keras.models.Model, bool, int]:
     is_compiled = False
     init_epoch = 0
 
     if checkpoint is not None:
+        if find_last_checkpoint:
+            files = pd.DataFrame.from_records([dict(fullpath=el, ckpt=int(Path(el).name.split(metric_type)[1][1:-3]))
+                                                for el in glob.glob(f"{checkpoint}/*.h5", recursive=True)])
+            checkpoint = Path(max(list(files[files.ckpt==files.ckpt.max()].fullpath), key=os.path.getctime)) 
+            print(f"Model will continue from  {checkpoint}")
+            
         if metric_type in checkpoint.name:
             init_epoch = int(checkpoint.name.split(metric_type)[1][1:-3])
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
@@ -200,12 +236,73 @@ def load_model(
     return model, is_compiled, init_epoch
 
 
+
+class TimingCallback(tf.keras.callbacks.Callback):
+    def __init__(self, filename=None):
+        super().__init__()
+        self.tracked_time = []
+        self.filename =filename
+        print("Created Timing callback, results will be saved under ", self.filename)
+
+    def on_train_batch_begin(self, batch, logs=None):
+        self.batch_begin_time = perf_counter()
+        self.bacth_end_time = None
+
+    def on_train_batch_end(self, batch, logs=None):
+        batch_end_time = perf_counter()
+        time_elapsed_for_batch = batch_end_time - self.batch_begin_time
+        replica_context = tf.distribute.get_replica_context() 
+        replica_id = replica_context.replica_id_in_sync_group  if replica_context is not None else None
+        
+        self.tracked_time.append({"type": "batch", "epoch_idx": self.current_epoch, "batch_idx": batch,
+                                  "begin_time": self.batch_begin_time,
+                                  "end_time": batch_end_time,
+                                  "time_elapsed": time_elapsed_for_batch,
+                                  "replica_id":replica_id})
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch_begin_time = perf_counter()
+        self.current_epoch = epoch
+
+    def on_epoch_end(self, epoch, logs=None):
+        epoch_end_time = perf_counter()
+        time_elapsed_for_epoch = epoch_end_time - self.epoch_begin_time
+        replica_context = tf.distribute.get_replica_context() 
+        replica_id = replica_context.replica_id_in_sync_group  if replica_context is not None else None
+        
+        self.tracked_time.append({"type": "epoch", "epoch_idx": epoch,
+                                  "begin_time": self.epoch_begin_time,
+                                  "end_time": epoch_end_time,
+                                  "time_elapsed": time_elapsed_for_epoch,
+                                    "replica_id":replica_id })
+
+    def on_train_begin(self, logs=None):
+        self.train_begin_time = perf_counter()
+
+    def on_train_end(self, logs=None):
+        train_end_time = perf_counter()
+        time_elapsed_for_train = train_end_time - self.train_begin_time
+        replica_context = tf.distribute.get_replica_context() 
+        replica_id = replica_context.replica_id_in_sync_group  if replica_context is not None else None
+        
+        self.tracked_time.append({"type": "fit",
+                                  "begin_time": self.train_begin_time,
+                                  "end_time": train_end_time,
+                                  "time_elapsed": time_elapsed_for_train,
+                                   "replica_id":replica_id})
+
+        tracked_time_pd = pd.DataFrame.from_records(self.tracked_time)
+        tracked_time_pd.to_csv(self.filename, index=False)
+
+
 def build_callbacks(
     output_dir: Path,
     metric_type,
     wandb: bool = False,
     wandb_log_freq: Union[str, int] = "epoch",
     training_opts: Optional[TrainingOptions] = None,
+    num_gpu: int = None, 
+    steps_per_epoch: int = None
 ):
     # create log folder
     log_dir = output_dir / "logs"
@@ -213,9 +310,12 @@ def build_callbacks(
 
     # model saving callback
     save_file_name = os.path.join(output_dir, "%s_{epoch:03d}.h5" % metric_type)
+
+    tracking_file = os.path.join(output_dir, f"time_recorder-num_gpu_{num_gpu}-strategy-{training_opts.strategy}_scaling-{training_opts.scaling_type}_steps_per_epoch-{steps_per_epoch}")
+    tracking_callback = TimingCallback(tracking_file)
     # save_weights_only=True is a workaround when training with mixed precision: https://github.com/keras-team/tf-keras/issues/203
     # For now, setting this to true disables the posibility to train a model further, at least if we dont want to reinit the momentum ...
-    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=True)]
+    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=False), tracking_callback]
 
     # TensorBoard callback
     if metric_type == "dice":
