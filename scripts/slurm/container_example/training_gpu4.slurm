@@ -29,7 +29,7 @@ source /etc/profile.d/modules.sh
 module purge
 module load apptainer/1.2.2
 
-cfg_file="$HOME/Projects/SynthSeg/project_folder/training_configs/test/${cfg_name}"
+cfg_file="/ptmp/nhorlava/projects/SynthSeg/training_configs/test/${cfg_name}"
 config_path_original="/ptmp/nhorlava/projects/SynthSeg/training_configs/test"
 data_path_original="/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v1/tfrecords"
 code_path="$HOME/Projects/SynthSeg"
