@@ -32,4 +32,5 @@ SynthSeg/validate_vae.py
 
 **/*.tfrecord
 
-**/*nvidia_smi_monitoring
+*nvidia_smi_monitoring*
+*.sif
