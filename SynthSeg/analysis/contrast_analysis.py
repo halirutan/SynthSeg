@@ -36,7 +36,7 @@ def clip_and_rescale_nifti(nifti_file: str,
                            min_clip: Optional[float] = None,
                            max_clip: Optional[float] = None,
                            min_out: float = 0.0,
-                           max_out: float = 255.0):
+                           max_out: float = 1.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
     Wrapper around the `clip_and_rescale_intensity` function.
