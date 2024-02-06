@@ -1,18 +1,21 @@
 # Getting started 
 
-The container was build on tensorflow version==2.14 with together with additional requirements as scpeficied in `containers/requirement_container.txt`. Once you will need to install another package or its version, modify `containers/requirement_container.txt` and [re-build](https://gitkraken.dev/link/dnNjb2RlOi8vZWFtb2Rpby5naXRsZW5zL2xpbmsvci81ZWJhYjFlNjRlMDI1NmU4ZjVhM2M3ZDJjOWVjYmRjZjQzYmVkNjc5L2YvY29udGFpbmVyL1JFQURNRS5tZD91cmw9Z2l0JTQwZ2l0aHViLmNvbSUzQWhhbGlydXRhbiUyRlN5bnRoU2VnLmdpdCZsaW5lcz03?origin=gitlens) the container.
+The container was built on tensorflow version==2.14 together with additional requirements as specified in `containers/requirement_container.txt`. If you need to install another package or its version, modify `containers/requirement_container.txt` and re-build the container.
 
-To run a container, you could either re-build it from the recipy yourself or, in case of working on RAVEN cluster, copy the working image to you home directory or simply link it via symbolic link. 
+To run a container, you could either re-build it from the recipe yourself or, in case of working on RAVEN cluster, copy the working image to your home directory or simply link it via a symbolic link. 
 
-1. To re-build a conntainer from scratch on RAVEN, and assuming you'rein the root directory of the project, run:
+### Build container from the recipe:
+
+To re-build a container from scratch on RAVEN, and assuming you're in the root directory of the project, run:
 
 ```shell
 module load apptainer/1.2.2
 apptainer build --fakeroot container/nvidia_tensorflow.sif container/nvidia_tensorflow.def
 ``` 
+### Access existing image:
 
-2. If you're working on RAVEN, you could access already created image of a container, which is located in the `/ptmp/nhorlava/projects/SynthSeg/container/nvidia_tensorflow.sif`. 
-You could also link it to your working directory via symbolic link: 
+If you're working on RAVEN, you could access an already created image of a container, which is located in the `/ptmp/nhorlava/projects/SynthSeg/container/nvidia_tensorflow.sif`. 
+You could also link it to your working directory via a symbolic link: 
 
 ```shell
  ln -s /ptmp/nhorlava/projects/SynthSeg/container/nvidia_tensorflow.sif $PWD/container/nvidia_tensorflow_linked.sif
@@ -21,12 +24,12 @@ You could also link it to your working directory via symbolic link:
 # Running a container
 
 An example of sbatch file for training SynthSeg from scratch is located in `scripts/slurm/container_example/training_gpu4.slurm`. An example of resuming the SynthSeg training is located in `scripts/slurm/container_example/training_gpu4_resume.slurm`
-You'll need to modify it according to location of your code / data/ models. 
+You'll need to modify it according to the location of your code / data/ models. 
 
-Let's dive into example or running a container:
+Let's dive into an example of running a container:
 
 
-```bash=
+```shell
 #!/bin/bash -l
 # Standard output and error:
 #SBATCH -o ./job_logs/job_4gpu_wo_opt.out.%j
@@ -73,21 +76,21 @@ srun apptainer exec \
 
     - My configs, as well as the data I'm using, are located on **/ptmp** filesystem. Withing a container instance, this filesystem will not be visible unless its binded. 
     - Hence, we provide the path to where configs/models are stored 
-([`config_path_original`](https://gitkraken.dev/link/dnNjb2RlOi8vZWFtb2Rpby5naXRsZW5zL2xpbmsvci81ZWJhYjFlNjRlMDI1NmU4ZjVhM2M3ZDJjOWVjYmRjZjQzYmVkNjc5L2YvY29udGFpbmVyL1JFQURNRS5tZD91cmw9Z2l0JTQwZ2l0aHViLmNvbSUzQWhhbGlydXRhbiUyRlN5bnRoU2VnLmdpdCZsaW5lcz01Nw%3D%3D?origin=gitlens)),
+`config_path_original`,
  as well as were the data is stored
-([`data_path_original`](https://gitkraken.dev/link/dnNjb2RlOi8vZWFtb2Rpby5naXRsZW5zL2xpbmsvci81ZWJhYjFlNjRlMDI1NmU4ZjVhM2M3ZDJjOWVjYmRjZjQzYmVkNjc5L2YvY29udGFpbmVyL1JFQURNRS5tZD91cmw9Z2l0JTQwZ2l0aHViLmNvbSUzQWhhbGlydXRhbiUyRlN5bnRoU2VnLmdpdCZsaW5lcz01OQ%3D%3D?origin=gitlens)). 
+`data_path_original`. 
 
-    - When running a python code withing a container instance, we first bind this directories via [**`-B`** ](https://gitkraken.dev/link/dnNjb2RlOi8vZWFtb2Rpby5naXRsZW5zL2xpbmsvci81ZWJhYjFlNjRlMDI1NmU4ZjVhM2M3ZDJjOWVjYmRjZjQzYmVkNjc5L2YvY29udGFpbmVyL1JFQURNRS5tZD91cmw9Z2l0JTQwZ2l0aHViLmNvbSUzQWhhbGlydXRhbiUyRlN5bnRoU2VnLmdpdCZsaW5lcz02Ng%3D%3D?origin=gitlens) flag .
+    - When running a python code withing a container instance, we first bind this directories via **`-B`** flag .
 
 2. **Providing path to developed package**:
     - Assume the code is still in the development ohase and therefore is still being modified. At the same time, we want to treat it as a panckage. Now, if we were to run **without containers**, we could have just instaled it in a virtual environment via `pip install -e .`. This would have installed our package in a "editable" mode from your project directory, meaning that you could make changes to the source code without needing to reinstall the package every time you make a change.
     - To retain this behavior when running a container, we will instead pass the `$PYTHONPATH` variable to the container instance. By doing so, we will modify python's module search path, therefore making python look into the specified directorie(s) when trying to import a module. 
-    - To pass the '$PYTHONPATH' to the container instance when running it, we'll use the [**`--env`** ](https://gitkraken.dev/link/dnNjb2RlOi8vZWFtb2Rpby5naXRsZW5zL2xpbmsvci81ZWJhYjFlNjRlMDI1NmU4ZjVhM2M3ZDJjOWVjYmRjZjQzYmVkNjc5L2YvY29udGFpbmVyL1JFQURNRS5tZD91cmw9Z2l0JTQwZ2l0aHViLmNvbSUzQWhhbGlydXRhbiUyRlN5bnRoU2VnLmdpdCZsaW5lcz02Nw%3D%3D?origin=gitlens) flag. 
+    - To pass the '$PYTHONPATH' to the container instance when running it, we'll use the **`--env`** flag. 
     - **NOTE**: Make sure to change **code_path** to the directoty of **YOUR** project.
 
 # Notes on symbolic links in a bundle with containers
 
-ALthough it might be common to use symbolic links, e.g. for folders located on aother filesystem, the container instance will not see them. 
+Although it might be common to use symbolic links, e.g. for folders located on another filesystem, the container instance will not see them. 
 
 Therefore, provide the full original path for the container, as well as bind it if it is located on another filesystem. 
 
@@ -97,7 +100,7 @@ Imaging you have created a symbolic link to your config folder:
 ln -s /ptmp/dcfidalgo/projects/cbs/segmentation/generation/v1/tfrecords/ project_folder/training_containers
 ```
 
-Now, you will see in you project directory smth like: 
+Now, you will see in your project directory something like this: 
 
 ```
 |_SynthSeg
@@ -111,7 +114,7 @@ Now, you will see in you project directory smth like:
 
 ```
 
-To now run a container while providing path to `config_gpu4.yml`, you'd need to bind teh **original** path of this file: 
+To now run a container while providing a path to `config_gpu4.yml`, you'd need to bind the **original** path of this file: 
 
 ```shell
 cfg_path="$(readlink project_folder/training_containers)"
@@ -127,14 +130,14 @@ apptainer shell \
 ```
 
  NOTE: 
- - It is adviced agaist binding this remote path to the same directory to which your symbolic link is connected, like `apptainer shell -B $cfg_path:$PWD/project_folder/training_containers container/nvidia_tensorflow.sif` as it will not see the content of `/project_folder/training_containers` in this case:
+ - It is advised against binding this remote path to the same directory to which your symbolic link is connected, like `apptainer shell -B $cfg_path:$PWD/project_folder/training_containers container/nvidia_tensorflow.sif` as it will not see the content of `/project_folder/training_containers` in this case:
 
  ```console
 Apptainer> ls project_folder/training_configs
 project_folder/training_configs
  ```
- -  Similarly, if you would bind the remote path to the new folder on a host file system, an empty folder will be created, while files created will be stored in the original remote directory:
- `apptainer shell -B $cfg_path:$PWD/project_folder/training_containers container/nvidia_tensorflow.sif` as it will not see the content of `/project_folder/training_containers` in this case, and will create files in original remote directory, as in mocking example:
+ -  Similarly, if you bind the remote path to the new folder on a host file system, an empty folder will be created, while the files created will be stored in the original remote directory:
+ `apptainer shell -B $cfg_path:$PWD/project_folder/training_containers container/nvidia_tensorflow.sif` as it will not see the content of `/project_folder/training_containers` in this case, and will create files in the original remote directory, as in the mocking example:
 
  ```console
 user@raven02> cfg_path="/ptmp/nhorlava/projects/SynthSeg/test_sl" 
