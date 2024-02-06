@@ -149,7 +149,7 @@ test.txt
 Apptainer> exit
 
 user@raven02> ls project_folder/test_sl_linked/
-user@raven02> ls $config_path
+
 user@raven02> ls $cfg_path
 test.txt
  ```
