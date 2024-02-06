@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 import nibabel as nib
 
@@ -55,6 +55,12 @@ def clip_and_rescale_nifti(nifti_file: str,
     nib.save(nib.Nifti1Image(
         clip_and_rescale_intensity(data, min_clip, max_clip, min_out, max_out),
         img.affine, img.header), out_file)
+
+
+def combine_nifti_files(nifti_files: List[str], output_file: str) -> None:
+    img = nib.load(nifti_files[0])
+    combined_data = np.stack([nib.load(file).get_fdata() for file in nifti_files], axis=-1)
+    nib.save(nib.Nifti1Image(combined_data, img.affine, img.header), output_file)
 
 
 def calculate_winsorized_statistics(data: np.ndarray, percentile: float) -> tuple[float, float]:

@@ -73,6 +73,11 @@ def main():
     else:
         rescaled_contrast_images = options.contrast_files
 
+    # Write out combined Nifti file
+    from SynthSeg.analysis.contrast_analysis import combine_nifti_files
+    logger.info(f"Combining {len(rescaled_contrast_images)} images into a single file")
+    combine_nifti_files(rescaled_contrast_images, os.path.join(options.output_dir, "combined.nii"))
+
     # Analyze each contrast with the label image and collect the results.
     from SynthSeg.analysis.label_analysis import estimate_contrast_distribution
 
