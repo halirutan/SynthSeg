@@ -57,10 +57,14 @@ def clip_and_rescale_nifti(nifti_file: str,
         img.affine, img.header), out_file)
 
 
-def combine_nifti_files(nifti_files: List[str], output_file: str) -> None:
+def combine_nifti_files(nifti_files: List[str],
+                        output_file: str,
+                        scale_min: float = 0.0,
+                        scale_max: float = 255.0) -> None:
     img = nib.load(nifti_files[0])
-    combined_data = np.stack([nib.load(file).get_fdata() for file in nifti_files], axis=-1)
-    nib.save(nib.Nifti1Image(combined_data, img.affine, img.header), output_file)
+    data = np.stack([nib.load(file).get_fdata() for file in nifti_files], axis=-1)
+    data = (data - data.min()) / (data.max() - data.min())
+    nib.save(nib.Nifti1Image(data, img.affine, img.header), output_file)
 
 
 def calculate_winsorized_statistics(data: np.ndarray, percentile: float) -> tuple[float, float]:

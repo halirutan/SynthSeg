@@ -67,8 +67,21 @@ def main():
             file_name = os.path.basename(f)
             logger.info(f"Rescaling image {file_name}")
             output_file_path = os.path.join(options.output_dir, file_name)
+            # Attention!
+            # We must analyze images that are in the value range [0, 255].
+            # SynthSeg generates images (brain generator) that are scaled to [0, 1], however when providing
+            # prior means and stds, it expects definitions in the range [0, 255] or hell breaks loose.
+            # Look at model_inputs.py line 150 and 151 and see that it randomly replaces background values
+            # with npr.uniform(0, 15).
+            # When we feed it with statistics in [0, 1] you will randomly get maps that don't make sense
+            # because the scaling is totally off.
+            # Therefore, we rescale our contrasts to [0, 255] but we export the "combined.nii" rescaled to [0, 1] so
+            # that we can compare it with the generated synthetic maps.
             clip_and_rescale_nifti(f, output_file_path,
-                                   min_clip=clip_min_values[image_num], max_clip=clip_max_values[image_num])
+                                   min_clip=clip_min_values[image_num],
+                                   max_clip=clip_max_values[image_num],
+                                   min_out=0.0,
+                                   max_out=255.0)
             rescaled_contrast_images.append(output_file_path)
     else:
         rescaled_contrast_images = options.contrast_files
@@ -76,7 +89,11 @@ def main():
     # Write out combined Nifti file
     from SynthSeg.analysis.contrast_analysis import combine_nifti_files
     logger.info(f"Combining {len(rescaled_contrast_images)} images into a single file")
-    combine_nifti_files(rescaled_contrast_images, os.path.join(options.output_dir, "combined.nii"))
+    combine_nifti_files(rescaled_contrast_images,
+                        os.path.join(options.output_dir, "combined.nii"),
+                        scale_min=0.0,
+                        scale_max=1.0
+                        )
 
     # Analyze each contrast with the label image and collect the results.
     from SynthSeg.analysis.label_analysis import estimate_contrast_distribution
