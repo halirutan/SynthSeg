@@ -369,6 +369,7 @@ class TrainingOptions(Serializable, OptionsBase):
     """
 
     scaling_type: str = "weak"
+    save_weights_only: bool = True
 
     find_last_checkpoint: bool = True
 
@@ -406,5 +407,6 @@ class TrainingOptions(Serializable, OptionsBase):
             "compression_type",
             "strategy", 
             "scaling_type",
+            "save_weights_only"
             "find_last_checkpoint"
         ]
