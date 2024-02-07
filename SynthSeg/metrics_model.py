@@ -99,8 +99,9 @@ class WeightedL2Loss:
         ) / (tf.keras.backend.sum(weights) * self._n_labels)
 
 
-class DiceLoss:
+class DiceLoss(tf.keras.losses.Loss):
     def __init__(self, n_labels: int, dim: int = 3, enable_checks: bool = True):
+        super().__init__()
         self._n_labels = n_labels
         self._dim = dim
         self._enable_checks = enable_checks
@@ -113,7 +114,7 @@ class DiceLoss:
         }
         return config
 
-    def __call__(self, gt, pred):
+    def __call__(self, gt, pred, **kwargs):
         pred = tf.cast(pred, tf.float32)
         gt = tf.one_hot(gt, depth=self._n_labels, axis=-1, dtype=pred.dtype)
         # make sure tensors are probabilistic
