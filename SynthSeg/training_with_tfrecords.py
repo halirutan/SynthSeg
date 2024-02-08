@@ -211,7 +211,8 @@ def load_model(
                                                 for el in glob.glob(f"{checkpoint}/*.keras", recursive=True)])
             checkpoint = Path(max(list(files[files.ckpt==files.ckpt.max()].fullpath), key=os.path.getctime)) 
             print(f"Model will continue from  {checkpoint}")
-            
+        else: 
+            checkpoint = Path(checkpoint)
         if metric_type in checkpoint.name:
             init_epoch = int(str(checkpoint.name).split(metric_type)[1].split(".keras")[0][1:])
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
