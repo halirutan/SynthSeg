@@ -12,16 +12,17 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=0
 #
-#SBATCH --constraint="gpu"
+#SBATCH --partition=gpudev
+## SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:a100:4
 #
 #SBATCH --mail-type=end
 #SBATCH --mail-user=g.nasta.work@gmail.com
-#SBATCH --time=00:45:00
+#SBATCH --time=00:15:00
 
 
 
-cfg_name="config_gpu4_weak_resume.yml"
+cfg_name="config_gpu4_resume.yml"
 
 
 echo "Use containers"
@@ -29,11 +30,12 @@ source /etc/profile.d/modules.sh
 module purge
 module load apptainer/1.2.2
 
-cfg_file="/ptmp/nhorlava/projects/SynthSeg/training_configs/test/${cfg_name}"
-config_path_original="/ptmp/nhorlava/projects/SynthSeg/training_configs/test"
+config_path_original="/ptmp/nhorlava/projects/SynthSeg/training_configs"
+cfg_file="$config_path_original/test_with_opt_resume/${cfg_name}"
+
 data_path_original="/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v1/tfrecords"
 code_path="$HOME/Projects/SynthSeg"
-container_path=$HOME/Projects/SynthSeg/container/nvidia_tensorflow.sif
+container_path=$HOME/Projects/SynthSeg/container/nvidia_tensorflow_linked.sif
 
 nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,pci.bus_id --format=csv -l 2 > "nvidia_smi/nvidia_smi_monitoring_4gpu_resume.csv" &
 NVIDIASMI_PID=$!
