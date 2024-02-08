@@ -392,7 +392,7 @@ def build_callbacks(
     # For now, setting this to true disables the posibility to train a model further, at least if we dont want to reinit the momentum ...
     print(f"Model checkpoint save_weights_only?: {training_opts.save_weights_only}")
 
-    callbacks = [tf.keras.callbacks.ModelCheckpointCustom(batch_size = training_opts.batchsize, filepath =save_file_name, verbose=1, save_weights_only=training_opts.save_weights_only), 
+    callbacks = [ModelCheckpointCustom(batch_size = training_opts.batchsize, filepath =save_file_name, verbose=1, save_weights_only=training_opts.save_weights_only), 
                 #  tf.keras.callbacks.ModelCheckpoint(save_file_name_h5, verbose=1, save_weights_only=training_opts.save_weights_only), 
                  tracking_callback]
 
