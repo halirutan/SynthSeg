@@ -369,6 +369,12 @@ class TrainingOptions(Serializable, OptionsBase):
     """
 
     scaling_type: str = "weak"
+    """
+    Possible values: "weak", "strong". 
+    Option that was used when profiling the distributed training. 
+    When set to "strong" will set batch_size to the batch_size/num_gpu (to see same amount of data as withg one gpu). 
+    When set to "weak" batch size will stay the same.
+    """
 
     find_last_checkpoint: bool = True
     """
@@ -414,6 +420,5 @@ class TrainingOptions(Serializable, OptionsBase):
             "compression_type",
             "strategy", 
             "scaling_type",
-            "save_weights_only"
             "find_last_checkpoint"
         ]
