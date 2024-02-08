@@ -4,7 +4,7 @@ from typing import Tuple, Union, Optional
 from contextlib import nullcontext
 from inspect import getmembers, isclass
 from pathlib import Path
-
+import numpy as np
 from time import perf_counter
 import pandas as pd
 import glob
@@ -33,6 +33,10 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         opts: The training options. The parameters related to the generation of the synthetic images will be ignored.
     """
     # Check epochs
+    tf.random.set_seed(42)
+    tf.keras.utils.set_random_seed(42)
+    np.random.seed(42)
+
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
     ), "either wl2_epochs or dice_epochs must be positive, had {0} and {1}".format(
@@ -43,7 +47,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
 
     # Define distributed strategy
-    print(f"Using {opts.strategy} strategy")
     
     if opts.strategy == "null":
         strategy = NullStrategy()
@@ -120,10 +123,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                 optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
                 loss=WeightedL2Loss(n_labels=opts.n_labels),
             )
-    
-
-    print(opts.__dict__)
-    print("Strategy ", strategy, " gpu: ", num_gpu, "steps_per_epoch ",  steps_per_epoch)
 
     results = None
     if opts.wl2_epochs > 0:
@@ -152,15 +151,17 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
             wandb.finish()
 
-        checkpoint = output_dir / ("wl2_%03d.h5" % opts.wl2_epochs)
+        checkpoint = output_dir / ("wl2_%03d.keras" % opts.wl2_epochs)
         find_last_checkpoint = False
+
 
     if opts.dice_epochs > 0:
         
         with strategy.scope():
             # fine-tuning with dice metric
-            dice_model, is_compiled, init_epoch = load_model(
-                model=unet_model, checkpoint=checkpoint, metric_type="dice", find_last_checkpoint = find_last_checkpoint
+            dice_model, is_compiled, init_epoch, seen_samples = load_model(
+                model=unet_model, checkpoint=checkpoint, metric_type="dice", find_last_checkpoint = find_last_checkpoint ,
+                reinitialise_momentum = opts.save_weights_only
             )
             if not is_compiled:
                 dice_model.compile(
@@ -168,6 +169,17 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                     loss=DiceLoss(n_labels=opts.n_labels),
                 )
 
+        if seen_samples>0:
+            # Unbatching and batching back in done for the case when batch size changes for some reason: e.g. num_gpu changed 
+            dataset= dataset.unbatch()
+            print(f"Amount of samples that will be skipped: {seen_samples}")
+            dataset = dataset.skip(seen_samples).batch(opts.batchsize).prefetch(1)
+        
+        #ToDo: remove print later
+        print(f"Last layer of optimizer: ",  dice_model.optimizer.variables[-1].numpy())
+        print(f"Optimizers  number of iterations at the beginning: ",  dice_model.optimizer.iterations.numpy())
+      
+        
         callbacks = build_callbacks(
             output_dir=output_dir,
             metric_type="dice",
@@ -194,21 +206,28 @@ def load_model(
     checkpoint: Path,
     metric_type: str,
     reinitialise_momentum: bool = False,
-    find_last_checkpoint: bool = True
+    find_last_checkpoint: bool = True, 
 ) -> Tuple[tf.keras.models.Model, bool, int]:
     is_compiled = False
     init_epoch = 0
+    seen_samples = 0
 
     if checkpoint is not None:
         if find_last_checkpoint:
-            files = pd.DataFrame.from_records([dict(fullpath=el, ckpt=int(Path(el).name.split(metric_type)[1][1:-3]))
-                                                for el in glob.glob(f"{checkpoint}/*.h5", recursive=True)])
+            files = pd.DataFrame.from_records([dict(fullpath=el, ckpt=int(str(Path(el).name).split(metric_type)[1].split(".keras")[0][1:]))
+                                                for el in glob.glob(f"{checkpoint}/*.keras", recursive=True)])
             checkpoint = Path(max(list(files[files.ckpt==files.ckpt.max()].fullpath), key=os.path.getctime)) 
             print(f"Model will continue from  {checkpoint}")
+        else:
+            checkpoint = Path(checkpoint)
             
-        if metric_type in checkpoint.name:
-            init_epoch = int(checkpoint.name.split(metric_type)[1][1:-3])
+        # if metric_type in checkpoint.name:
+        init_epoch = int(str(checkpoint.name).split("epoch-")[1].split("_seen_samples")[0])
+        seen_samples =  int(str(checkpoint.name).split("_seen_samples-")[1].split(".keras")[0])
+
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
+            print("loading model with states ")
+
             custom_l2i = {
                 key: value
                 for (key, value) in getmembers(layers, isclass)
@@ -228,24 +247,61 @@ def load_model(
                 "loss": IdentityLoss().loss,
                 "DiceLoss": DiceLoss
             }
-            # print(custom_objects)
             model = tf.keras.models.load_model(
                 checkpoint, custom_objects=custom_objects
             )
+            # init_batch_idx = model.optimizer.iterations.numpy()
+
             is_compiled = True
         else:
             model.load_weights(checkpoint, by_name=True)
+            print("loading weights only")
 
-    return model, is_compiled, init_epoch
+
+    return model, is_compiled, init_epoch, seen_samples
 
 
+     
+class ModelCheckpointCustom(tf.keras.callbacks.ModelCheckpoint):
+    def __init__(self,
+                batch_size,
+                 filepath,
+                 monitor: str = "val_loss",
+                 verbose: int = 0,
+                 save_best_only: bool = False,
+                 save_weights_only: bool = False,
+                 mode: str = "auto",
+                 save_freq="epoch",
+                 options=None,
+                 initial_value_threshold=None,
+                 **kwargs):
+
+        super().__init__(
+            filepath = filepath,
+            monitor=monitor,
+        verbose=verbose,
+        save_best_only = save_best_only,
+        save_weights_only = save_weights_only,
+        mode=mode,
+        save_freq = save_freq,
+        options = options,
+        initial_value_threshold = initial_value_threshold,
+        **kwargs)
+
+        self.batch_size = batch_size
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs["seen_samples"] = self.model.optimizer.iterations.numpy()*self.batch_size
+        super().on_epoch_end(epoch, logs)
 
 class TimingCallback(tf.keras.callbacks.Callback):
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, append = True):
         super().__init__()
+        self.filename = filename
+        # super().__init__(filename=filename, append = append)
         self.tracked_time = []
-        self.filename =filename
         print("Created Timing callback, results will be saved under ", self.filename)
+        self._chief_worker_only = True
 
     def on_train_batch_begin(self, batch, logs=None):
         self.batch_begin_time = perf_counter()
@@ -279,8 +335,22 @@ class TimingCallback(tf.keras.callbacks.Callback):
                                   "time_elapsed": time_elapsed_for_epoch,
                                     "replica_id":replica_id })
 
+        print(f"Last layer of optimizer at the end of epoch {epoch}: ",  self.model.optimizer.variables[-1].numpy())
+        print(f"Optimizers  number of iterations at the end of epoch {epoch}: ",  self.model.optimizer.iterations.numpy())
+
+        # if epoch==1:
+        #     ckpt =Path(self.filename).resolve().parent/f"model_epoch-{epoch}.keras"
+        #     print(f"saving model additionally to {ckpt}")
+        #     self.model.save(str(ckpt))
+
+
+
+  
+
     def on_train_begin(self, logs=None):
         self.train_begin_time = perf_counter()
+        # super().on_train_begin(self, logs)
+
 
     def on_train_end(self, logs=None):
         train_end_time = perf_counter()
@@ -312,13 +382,19 @@ def build_callbacks(
     log_dir.mkdir(exist_ok=True)
 
     # model saving callback
-    save_file_name = os.path.join(output_dir, "%s_{epoch:03d}.h5" % metric_type)
+    save_file_name = os.path.join(output_dir, "%s_epoch-{epoch:03d}_seen_samples-{seen_samples}.keras" % metric_type)
+    # save_file_name_h5 = os.path.join(output_dir, "%s_{epoch:03d}.h5" % metric_type)
 
-    tracking_file = os.path.join(output_dir, f"time_recorder-num_gpu_{num_gpu}-strategy-{training_opts.strategy}_scaling-{training_opts.scaling_type}_steps_per_epoch-{steps_per_epoch}")
+
+    tracking_file = os.path.join(output_dir, f"time_recorder-num_gpu_{num_gpu}-strategy-{training_opts.strategy}_scaling-{training_opts.scaling_type}_steps_per_epoch-{steps_per_epoch}.csv")
     tracking_callback = TimingCallback(tracking_file)
     # save_weights_only=True is a workaround when training with mixed precision: https://github.com/keras-team/tf-keras/issues/203
     # For now, setting this to true disables the posibility to train a model further, at least if we dont want to reinit the momentum ...
-    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=False), tracking_callback]
+    print(f"Model checkpoint save_weights_only?: {training_opts.save_weights_only}")
+
+    callbacks = [tf.keras.callbacks.ModelCheckpointCustom(batch_size = training_opts.batchsize, filepath =save_file_name, verbose=1, save_weights_only=training_opts.save_weights_only), 
+                #  tf.keras.callbacks.ModelCheckpoint(save_file_name_h5, verbose=1, save_weights_only=training_opts.save_weights_only), 
+                 tracking_callback]
 
     # TensorBoard callback
     if metric_type == "dice":
