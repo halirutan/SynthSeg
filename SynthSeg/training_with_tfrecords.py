@@ -159,7 +159,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         
         with strategy.scope():
             # fine-tuning with dice metric
-            dice_model, is_compiled, init_epoch, seen_samples = load_model(
+            dice_model, is_compiled, init_epoch, init_batch = load_model(
                 model=unet_model, checkpoint=checkpoint, metric_type="dice", find_last_checkpoint = find_last_checkpoint ,
                 reinitialise_momentum = opts.save_weights_only
             )
@@ -168,17 +168,12 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                     optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
                     loss=DiceLoss(n_labels=opts.n_labels),
                 )
-
-        if seen_samples>0:
-            # Unbatching and batching back in done for the case when batch size changes for some reason: e.g. num_gpu changed 
-            dataset= dataset.unbatch()
-            print(f"Amount of samples that will be skipped: {seen_samples}")
-            dataset = dataset.skip(seen_samples).batch(opts.batchsize).prefetch(1)
-        
         #ToDo: remove print later
+
         print(f"Last layer of optimizer: ",  dice_model.optimizer.variables[-1].numpy())
         print(f"Optimizers  number of iterations at the beginning: ",  dice_model.optimizer.iterations.numpy())
-      
+        print(f"Amount of batches that will be skipped: {init_batch}")
+        dataset = dataset.skip(init_batch)
         
         callbacks = build_callbacks(
             output_dir=output_dir,
@@ -210,7 +205,7 @@ def load_model(
 ) -> Tuple[tf.keras.models.Model, bool, int]:
     is_compiled = False
     init_epoch = 0
-    seen_samples = 0
+    init_batch_idx = 0
 
     if checkpoint is not None:
         if find_last_checkpoint:
@@ -218,13 +213,9 @@ def load_model(
                                                 for el in glob.glob(f"{checkpoint}/*.keras", recursive=True)])
             checkpoint = Path(max(list(files[files.ckpt==files.ckpt.max()].fullpath), key=os.path.getctime)) 
             print(f"Model will continue from  {checkpoint}")
-        else:
-            checkpoint = Path(checkpoint)
             
-        # if metric_type in checkpoint.name:
-        init_epoch = int(str(checkpoint.name).split("epoch-")[1].split("_seen_samples")[0])
-        seen_samples =  int(str(checkpoint.name).split("_seen_samples-")[1].split(".keras")[0])
-
+        if metric_type in checkpoint.name:
+            init_epoch = int(str(checkpoint.name).split(metric_type)[1].split(".keras")[0][1:])
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
             print("loading model with states ")
 
@@ -250,7 +241,7 @@ def load_model(
             model = tf.keras.models.load_model(
                 checkpoint, custom_objects=custom_objects
             )
-            # init_batch_idx = model.optimizer.iterations.numpy()
+            init_batch_idx = model.optimizer.iterations.numpy()
 
             is_compiled = True
         else:
@@ -258,41 +249,9 @@ def load_model(
             print("loading weights only")
 
 
-    return model, is_compiled, init_epoch, seen_samples
+    return model, is_compiled, init_epoch, init_batch_idx
 
 
-     
-class ModelCheckpointCustom(tf.keras.callbacks.ModelCheckpoint):
-    def __init__(self,
-                batch_size,
-                 filepath,
-                 monitor: str = "val_loss",
-                 verbose: int = 0,
-                 save_best_only: bool = False,
-                 save_weights_only: bool = False,
-                 mode: str = "auto",
-                 save_freq="epoch",
-                 options=None,
-                 initial_value_threshold=None,
-                 **kwargs):
-
-        super().__init__(
-            filepath = filepath,
-            monitor=monitor,
-        verbose=verbose,
-        save_best_only = save_best_only,
-        save_weights_only = save_weights_only,
-        mode=mode,
-        save_freq = save_freq,
-        options = options,
-        initial_value_threshold = initial_value_threshold,
-        **kwargs)
-
-        self.batch_size = batch_size
-
-    def on_epoch_end(self, epoch, logs=None):
-        logs["seen_samples"] = self.model.optimizer.iterations.numpy()*self.batch_size
-        super().on_epoch_end(epoch, logs)
 
 class TimingCallback(tf.keras.callbacks.Callback):
     def __init__(self, filename=None, append = True):
@@ -382,7 +341,7 @@ def build_callbacks(
     log_dir.mkdir(exist_ok=True)
 
     # model saving callback
-    save_file_name = os.path.join(output_dir, "%s_epoch-{epoch:03d}_seen_samples-{seen_samples}.keras" % metric_type)
+    save_file_name = os.path.join(output_dir, "%s_{epoch:03d}.keras" % metric_type)
     # save_file_name_h5 = os.path.join(output_dir, "%s_{epoch:03d}.h5" % metric_type)
 
 
@@ -392,7 +351,7 @@ def build_callbacks(
     # For now, setting this to true disables the posibility to train a model further, at least if we dont want to reinit the momentum ...
     print(f"Model checkpoint save_weights_only?: {training_opts.save_weights_only}")
 
-    callbacks = [ModelCheckpointCustom(batch_size = training_opts.batchsize, filepath =save_file_name, verbose=1, save_weights_only=training_opts.save_weights_only), 
+    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=training_opts.save_weights_only), 
                 #  tf.keras.callbacks.ModelCheckpoint(save_file_name_h5, verbose=1, save_weights_only=training_opts.save_weights_only), 
                  tracking_callback]
 
