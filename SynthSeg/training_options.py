@@ -369,9 +369,16 @@ class TrainingOptions(Serializable, OptionsBase):
     """
 
     scaling_type: str = "weak"
-    save_weights_only: bool = True
 
     find_last_checkpoint: bool = True
+    """
+    If set to True, would assume that 'checkpoint' is a directory and would try to find the last available checkpoint
+    by skanning all files with extension ".keras", getting the epoch by the name.
+    In case of multiple filenames from the same epoch the file that was created teh last will be chosen.
+
+    If set to False, 'checkpoint' parameter will be treated like a pull path to the checkpoint file. 
+    """
+
 
     mixed_precision: bool = False
     """
