@@ -368,15 +368,7 @@ class TrainingOptions(Serializable, OptionsBase):
     See https://www.tensorflow.org/guide/distributed_training for more information. 
     """
 
-    scaling_type: str = "weak"
-    """
-    Possible values: "weak", "strong". 
-    Option that was used when profiling the distributed training. 
-    When set to "strong" will set batch_size to the batch_size/num_gpu (to see same amount of data as withg one gpu). 
-    When set to "weak" batch size will stay the same.
-    """
-
-    find_last_checkpoint: bool = True
+    find_last_checkpoint: bool = False
     """
     If set to True, would assume that 'checkpoint' is a directory and would try to find the last available checkpoint
     by skanning all files with extension ".keras", getting the epoch by the name.
@@ -385,6 +377,10 @@ class TrainingOptions(Serializable, OptionsBase):
     If set to False, 'checkpoint' parameter will be treated like a pull path to the checkpoint file. 
     """
 
+    seed: int = 42
+    """
+    see used for reproducibility
+    """
 
     mixed_precision: bool = False
     """
@@ -419,6 +415,6 @@ class TrainingOptions(Serializable, OptionsBase):
             "wandb_log_freq",
             "compression_type",
             "strategy", 
-            "scaling_type",
-            "find_last_checkpoint"
+            "find_last_checkpoint", 
+            "seed"
         ]
