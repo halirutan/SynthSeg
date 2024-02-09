@@ -216,7 +216,7 @@ def load_model(
         if metric_type in checkpoint.name:
             init_epoch = int(str(checkpoint.name).split(metric_type)[1].split(".keras")[0][1:])
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
-            print("loading model with states ")
+            print("loading model with optimizer states.")
 
             custom_l2i = {
                 key: value
