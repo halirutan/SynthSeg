@@ -142,7 +142,9 @@ def build_model_inputs(path_label_maps,
                                                                        125., 100., positive_only=True)
                 tmp_classes_stds = utils.draw_value_from_distribution(tmp_prior_stds, n_classes, prior_distributions,
                                                                       15., 10., positive_only=True)
-                random_coef = npr.uniform()
+                # TODO: We turn off random background augmentation
+                # random_coef = npr.uniform()
+                random_coef = 0
                 if random_coef > 0.95:  # reset the background to 0 in 5% of cases
                     tmp_classes_means[0] = 0
                     tmp_classes_stds[0] = 0

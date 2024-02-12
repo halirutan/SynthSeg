@@ -185,7 +185,8 @@ def labels_to_image_model(labels_shape,
         image = layers.BiasFieldCorruption(bias_field_std, bias_scale, False)(image)
 
     # intensity augmentation
-    image = layers.IntensityAugmentation(clip=300, normalise=True, gamma_std=.4, separate_channels=True)(image)
+    # TODO: This augmentation makes our analysis approach far too random, turning it off for the moment
+    # image = layers.IntensityAugmentation(clip=300, normalise=True, gamma_std=.4, separate_channels=True)(image)
 
     # loop over channels
     channels = list()
@@ -204,7 +205,8 @@ def labels_to_image_model(labels_shape,
 
         else:
             sigma = l2i_et.blurring_sigma_for_downsampling(atlas_res, data_res[i], thickness=thickness[i])
-            channel = layers.GaussianBlur(sigma, 1.03)(channel)
+            # TODO: Let's skip the random blurring as well
+            # channel = layers.GaussianBlur(sigma, 1.03)(channel)
             resolution = tf.keras.layers.Lambda(lambda x: tf.convert_to_tensor(data_res[i], dtype='float32'))([])
             channel = layers.MimicAcquisition(atlas_res, data_res[i], output_shape)([channel, resolution])
             channels.append(channel)

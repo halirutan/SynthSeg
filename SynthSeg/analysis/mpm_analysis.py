@@ -67,6 +67,7 @@ def main():
             file_name = os.path.basename(f)
             logger.info(f"Rescaling image {file_name}")
             output_file_path = os.path.join(options.output_dir, file_name)
+            # TODO: The comment below is currently outdated. We fixed it in SynthSeg
             # Attention!
             # We must analyze images that are in the value range [0, 255].
             # SynthSeg generates images (brain generator) that are scaled to [0, 1], however when providing
@@ -81,7 +82,7 @@ def main():
                                    min_clip=clip_min_values[image_num],
                                    max_clip=clip_max_values[image_num],
                                    min_out=0.0,
-                                   max_out=255.0)
+                                   max_out=1.0)
             rescaled_contrast_images.append(output_file_path)
     else:
         rescaled_contrast_images = options.contrast_files

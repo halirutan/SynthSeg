@@ -130,6 +130,11 @@ def create_cube_test_data(
     nifti_img = nib.Nifti1Image(gray_levels, np.eye(4))
     nib.save(nifti_img, img_file)
 
+    # Export scaled version
+    img_file_scaled = output_dir / "test_cube_scaled.nii"
+    nifti_img_scaled = nib.Nifti1Image(gray_levels/np.max(gray_levels), np.eye(4))
+    nib.save(nifti_img_scaled, img_file_scaled)
+
     from SynthSeg.brain_generator_options import GeneratorOptions
     config = GeneratorOptions()
     config.labels_dir = label_file
@@ -165,6 +170,7 @@ def create_cube_test_data(
     return {
         "label": label_file,
         "image": img_file,
+        "image_scaled": img_file_scaled,
         "config": config_file
     }
 
@@ -196,12 +202,12 @@ def check_region_distribution(
 
 def test_brain_generator_value():
     output_dir = TestData.get_test_output_dir("generator_test")
-    means = [0., 0.3, 0.6, 1.0]
-    stds = [0.0001, 0.0001, 0.0001, 0.0001]
+    means = [50.0, 100.0, 150.0, 200.0, 250.0]
+    stds = [0.0001, 0.0001, 0.0001, 0.0001, 0.0001]
     info = create_cube_test_data(means, stds, output_dir)
     from SynthSeg.brain_generator_options import GeneratorOptions
     from SynthSeg.brain_generator import create_brain_generator
-    generator_config = GeneratorOptions.load(info["config"])
+    generator_config = GeneratorOptions.load(info["config"]).convert_lists_to_numpy()
     generator = create_brain_generator(generator_config)
     from scripts.slurm.generation import _generate_image_label_pair
     _generate_image_label_pair(generator, output_dir, "generated")
