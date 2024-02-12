@@ -71,13 +71,14 @@ class IdentityLoss(object):
         return loss
 
 
-class WeightedL2Loss:
+class WeightedL2Loss(tf.keras.losses.Loss):
     def __init__(
         self,
         n_labels: int,
         target_value: float = 5.0,
         background_weight: float = 1.0e-4,
     ):
+        super().__init__()
         self._n_labels = n_labels
         self._target_value = target_value
         self._background_weight = background_weight
@@ -90,7 +91,7 @@ class WeightedL2Loss:
         }
         return config
 
-    def __call__(self, gt, pred):
+    def __call__(self, gt, pred, **kwargs):
         pred = tf.cast(pred, tf.float32)
         gt = tf.one_hot(gt, depth=self._n_labels, axis=-1, dtype=pred.dtype)
         weights = tf.expand_dims(1 - gt[..., 0] + self._background_weight, -1)
