@@ -74,7 +74,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
-    load_after_w2l_pretraining = False
+    load_after_wl2_pretraining = False
  
     # Define and compile model
         
@@ -147,7 +147,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
         checkpoint = output_dir / ("wl2_epoch-%03d.keras" % opts.wl2_epochs)
         find_last_checkpoint = False
-        load_after_w2l_pretraining = True
+        load_after_wl2_pretraining = True
 
     if opts.dice_epochs > 0:
         with strategy.scope():
@@ -155,7 +155,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             dice_model, is_compiled, init_epoch, init_batch = load_model(
                 model=unet_model, checkpoint=checkpoint, metric_type="dice", 
                 find_last_checkpoint = find_last_checkpoint,
-                load_after_w2l_pretraining = load_after_w2l_pretraining
+                load_after_wl2_pretraining = load_after_wl2_pretraining
             )
 
             if not is_compiled:
@@ -194,7 +194,7 @@ def load_model(
     metric_type: str,
     reinitialise_momentum: bool = False,
     find_last_checkpoint: bool = True, 
-    load_after_w2l_pretraining: bool = False
+    load_after_wl2_pretraining: bool = False
 ) -> Tuple[tf.keras.models.Model, bool, int]:
     is_compiled = False
     init_epoch = 0
@@ -220,7 +220,7 @@ def load_model(
             checkpoint = Path(checkpoint)
             assert checkpoint.exists(), f"Trying to load model for continuing training, but path {checkpoint} doesn't exits"
 
-        if not load_after_w2l_pretraining:
+        if not load_after_wl2_pretraining:
             assert metric_type in checkpoint.name, f"Trying to load model for continuing training with {metric_type} loss, but None were found"
             init_epoch = int(str(checkpoint.name).split("epoch-")[1].split(".keras")[0])
         
