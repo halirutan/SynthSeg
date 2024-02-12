@@ -73,7 +73,7 @@ class Options:
     However, these unknown labels will not be used for calculating the loss of the segmentation.
     """
 
-    undefined_region_stats: List[float] = field(default_factory=lambda: [25.0, 225.0, 5.0, 25.0])
+    undefined_region_stats: List[float] = field(default_factory=lambda: [0.1, 0.9, 0.01, 0.1])
     """
     Labels that are required for training but could not be found in the analysed scans need gray-level distributions
     as well.
