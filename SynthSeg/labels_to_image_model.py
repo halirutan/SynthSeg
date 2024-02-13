@@ -185,8 +185,9 @@ def labels_to_image_model(labels_shape,
         image = layers.BiasFieldCorruption(bias_field_std, bias_scale, False)(image)
 
     # intensity augmentation
-    # TODO: This augmentation makes our analysis approach far too random, turning it off for the moment
+    # TODO: We adjust the intensity augmentation to fit our needs
     # image = layers.IntensityAugmentation(clip=300, normalise=True, gamma_std=.4, separate_channels=True)(image)
+    image = layers.IntensityAugmentation(clip=[0.0, 1.0], normalise=False, gamma_std=0, separate_channels=True)(image)
 
     # loop over channels
     channels = list()

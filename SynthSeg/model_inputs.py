@@ -142,15 +142,14 @@ def build_model_inputs(path_label_maps,
                                                                        125., 100., positive_only=True)
                 tmp_classes_stds = utils.draw_value_from_distribution(tmp_prior_stds, n_classes, prior_distributions,
                                                                       15., 10., positive_only=True)
-                # TODO: We turn off random background augmentation
-                # random_coef = npr.uniform()
-                random_coef = 0
+                # TODO: We adapt random background augmentation to
+                random_coef = npr.uniform()
                 if random_coef > 0.95:  # reset the background to 0 in 5% of cases
-                    tmp_classes_means[0] = 0
-                    tmp_classes_stds[0] = 0
+                    tmp_classes_means[0] = 0.0
+                    tmp_classes_stds[0] = 0.0
                 elif random_coef > 0.7:  # reset the background to low Gaussian in 25% of cases
-                    tmp_classes_means[0] = npr.uniform(0, 15)
-                    tmp_classes_stds[0] = npr.uniform(0, 5)
+                    tmp_classes_means[0] = npr.uniform(0.0, 15.0/255.0)
+                    tmp_classes_stds[0] = npr.uniform(0.0, 5.0/255.0)
                 tmp_means = utils.add_axis(tmp_classes_means[generation_classes], axis=[0, -1])
                 tmp_stds = utils.add_axis(tmp_classes_stds[generation_classes], axis=[0, -1])
                 means = np.concatenate([means, tmp_means], axis=-1)
