@@ -164,7 +164,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                     loss=DiceLoss(n_labels=opts.n_labels),
                 )
 
-        print(f"Optimizers  number of iterations at the beginning: ",  dice_model.optimizer.iterations.numpy())
+        print(f"Optimizers number of iterations at the beginning: ",  dice_model.optimizer.iterations.numpy())
         print(f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss")
         print(f"Restarting from heckpoint: {init_epoch}")
         dataset = dataset.skip(init_batch+opts.wl2_epochs*opts.steps_per_epoch)
