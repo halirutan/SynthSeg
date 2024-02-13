@@ -414,7 +414,5 @@ class TrainingOptions(Serializable, OptionsBase):
             "prior_distributions",
             "wandb_log_freq",
             "compression_type",
-            "strategy", 
-            "find_last_checkpoint", 
-            "seed"
+            "strategy"
         ]
