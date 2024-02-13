@@ -370,11 +370,11 @@ class TrainingOptions(Serializable, OptionsBase):
 
     find_last_checkpoint: bool = False
     """
-    If set to True, would assume that 'checkpoint' is a directory and would try to find the last available checkpoint
-    by skanning all files with extension ".keras", getting the epoch by the name.
-    In case of multiple filenames from the same epoch the file that was created teh last will be chosen.
+    If set to True, assume that 'checkpoint' is a directory and try to find the last available checkpoint
+    by scanning all the files with the extension ".keras", getting the epoch from the name.
+    In case of multiple filenames from the same epoch, the last file created will be chosen.
 
-    If set to False, 'checkpoint' parameter will be treated like a pull path to the checkpoint file. 
+    If set to False, 'checkpoint' parameter will be treated like a full path to the checkpoint file. 
     """
 
     seed: int = 42
