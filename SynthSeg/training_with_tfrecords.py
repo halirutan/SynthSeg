@@ -118,7 +118,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             
 
     results = None
-    # additionally check that chackpoint is None, otherwise we assume that we want to
+    # additionally check that checkpoint is None, otherwise we assume that we want to
     # resume from dice checkpoint and thus skip w2l-pretraining
 
     if opts.wl2_epochs > 0 and checkpoint is None:
