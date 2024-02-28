@@ -34,3 +34,5 @@ SynthSeg/validate_vae.py
 
 *nvidia_smi_monitoring*
 *.sif
+
+.ipynb_checkpoints
