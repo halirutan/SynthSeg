@@ -25,7 +25,7 @@
 #SBATCH --time=00:30:00
 
 
-output_dir=/u/pscheibe/ptmp_link/t1w_pdw_500mu_nifti_examples
+output_dir=/u/pscheibe/ptmp_link/t1w_pdw_500mu_training_tfrecords
 config_file=${output_dir}/generator.yml
 
 module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
