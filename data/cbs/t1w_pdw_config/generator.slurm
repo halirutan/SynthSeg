@@ -54,7 +54,7 @@ NVIDIASMI_PID=$!
 # With count=2000 and batchsize in the generator.yml set to 8, this will result in the following number of training sets
 # workers * count * 8 = 20 * 2000 * 8 = 320000
 srun synthSeg-generate-synth-images \
---output_dir=${output_dir} \
+--output_dir=${output_dir}/tfrecords \
 --config_file=${config_file} \
 --count=2000 \
 --start_int=$(($SLURM_ARRAY_TASK_ID*2000)) \
