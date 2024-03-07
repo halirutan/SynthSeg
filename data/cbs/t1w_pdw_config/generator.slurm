@@ -57,6 +57,7 @@ srun synthSeg-generate-synth-images \
 --output_dir=${output_dir}/tfrecords \
 --config_file=${config_file} \
 --count=2000 \
+--tfrecord \
 --start_int=$(($SLURM_ARRAY_TASK_ID*2000)) \
 2>&1 | tee -a generation${SLURM_ARRAY_TASK_ID}.log
 
