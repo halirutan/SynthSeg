@@ -148,3 +148,60 @@ class DiceLoss(tf.keras.losses.Loss):
         last_tensor = top / bottom
 
         return tf.keras.backend.mean(1 - last_tensor)
+
+
+class MeanIoU(tf.keras.metrics.MeanIoU):
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        """Accumulates the confusion matrix statistics.
+
+        We need a custom implementation, since the shape of y_true
+        does not seem to be known when using TFRecordDatasets ...
+
+        Args:
+          y_true: The ground truth values.
+          y_pred: The predicted values.
+          sample_weight: Optional weighting of each example. Defaults to 1. Can
+            be a `Tensor` whose rank is either 0, or the same rank as `y_true`,
+            and must be broadcastable to `y_true`.
+
+        Returns:
+          Update op.
+        """
+
+        if not self.sparse_y_true:
+            y_true = tf.argmax(y_true, axis=self.axis)
+        if not self.sparse_y_pred:
+            y_pred = tf.argmax(y_pred, axis=self.axis)
+
+        y_true = tf.cast(y_true, self._dtype)
+        y_pred = tf.cast(y_pred, self._dtype)
+
+        # Flatten the input if its rank > 1.
+        if y_pred.shape.ndims > 1:
+            y_pred = tf.reshape(y_pred, [-1])
+
+        #if y_true.shape.ndims > 1:
+        y_true = tf.reshape(y_true, [-1])
+
+        if sample_weight is not None:
+            sample_weight = tf.cast(sample_weight, self._dtype)
+            if sample_weight.shape.ndims > 1:
+                sample_weight = tf.reshape(sample_weight, [-1])
+
+        if self.ignore_class is not None:
+            ignore_class = tf.cast(self.ignore_class, y_true.dtype)
+            valid_mask = tf.not_equal(y_true, ignore_class)
+            y_true = y_true[valid_mask]
+            y_pred = y_pred[valid_mask]
+            if sample_weight is not None:
+                sample_weight = sample_weight[valid_mask]
+
+        # Accumulate the prediction to current confusion matrix.
+        current_cm = tf.math.confusion_matrix(
+            y_true,
+            y_pred,
+            self.num_classes,
+            weights=sample_weight,
+            dtype=self._dtype,
+        )
+        return self.total_cm.assign_add(current_cm)
