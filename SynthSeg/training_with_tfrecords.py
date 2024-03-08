@@ -4,8 +4,6 @@ from typing import Tuple, Union, Optional
 from contextlib import nullcontext
 from inspect import getmembers, isclass
 from pathlib import Path
-import numpy as np
-from time import perf_counter
 import pandas as pd
 import glob
 import tensorflow as tf
@@ -15,7 +13,7 @@ from ext.neuron import layers as nrn_layers
 from ext.neuron import models as nrn_models
 from . import segmentation_model
 
-from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss
+from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss, MeanIoU
 from .training_options import TrainingOptions
 from .brain_generator import read_tfrecords
 
@@ -35,7 +33,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     # Check epochs
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
-    
 
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
@@ -66,7 +63,13 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         compression_type=opts.compression_type,
         num_parallel_reads=opts.num_parallel_reads,
     )
-    dataset = dataset.batch(opts.batchsize).prefetch(1)
+    dataset = dataset.batch(opts.batchsize).repeat()
+
+    valid_dataset = None
+    if opts.valid_tfrecords_dir:
+        valid_files = sorted(list(Path(opts.valid_tfrecords_dir).glob("*.tfrecord")))
+        valid_dataset = read_tfrecords(valid_files)
+        valid_dataset = valid_dataset.batch(opts.batchsize)
 
     input_shape = opts.input_shape
     if isinstance(input_shape, int):
@@ -75,9 +78,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
     load_after_wl2_pretraining = False
- 
+
     # Define and compile model
-        
+
     with strategy.scope():
         # prepare the segmentation model
         if opts.use_original_unet:
@@ -93,7 +96,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                 batch_norm=-1,
                 name="unet",
             )
-            
+
         else:
             unet_model = segmentation_model.unet(
                 input_shape=input_shape,
@@ -110,19 +113,24 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wl2_model = tf.keras.models.Model(
                 unet_model.inputs, [unet_model.get_layer("unet_likelihood").output]
             )
-            
+
             wl2_model.compile(
                 optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
                 loss=WeightedL2Loss(n_labels=opts.n_labels),
+                metrics=[
+                    MeanIoU(
+                        num_classes=opts.n_labels,
+                        sparse_y_true=True,
+                        sparse_y_pred=False,
+                    )
+                ],
             )
-            
 
     results = None
     # additionally check that checkpoint is None, otherwise we assume that we want to
     # resume from dice checkpoint and thus skip w2l-pretraining
 
     if opts.wl2_epochs > 0 and checkpoint is None:
-        
         callbacks = build_callbacks(
             output_dir=output_dir,
             metric_type="wl2",
@@ -137,12 +145,17 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             epochs=opts.wl2_epochs,
             steps_per_epoch=opts.steps_per_epoch or None,
             callbacks=callbacks,
+            validation_data=valid_dataset,
         )
 
-        print("Number of iterations wl2_model seen: ", wl2_model.optimizer.iterations.numpy())
+        print(
+            "Number of iterations wl2_model seen: ",
+            wl2_model.optimizer.iterations.numpy(),
+        )
 
         if opts.wandb:
             import wandb
+
             wandb.finish()
 
         checkpoint = output_dir / ("wl2_epoch-%03d.keras" % opts.wl2_epochs)
@@ -153,22 +166,36 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         with strategy.scope():
             # fine-tuning with dice metric
             dice_model, is_compiled, init_epoch, init_batch = load_model(
-                model=unet_model, checkpoint=checkpoint, metric_type="dice", 
-                find_last_checkpoint = find_last_checkpoint,
-                load_after_wl2_pretraining = load_after_wl2_pretraining
+                model=unet_model,
+                checkpoint=checkpoint,
+                metric_type="dice",
+                find_last_checkpoint=find_last_checkpoint,
+                load_after_wl2_pretraining=load_after_wl2_pretraining,
             )
 
             if not is_compiled:
                 dice_model.compile(
                     optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
                     loss=DiceLoss(n_labels=opts.n_labels),
+                    metrics=[
+                        MeanIoU(
+                            num_classes=opts.n_labels,
+                            sparse_y_true=True,
+                            sparse_y_pred=False,
+                        )
+                    ],
                 )
 
-        print(f"Optimizers number of iterations at the beginning: ",  dice_model.optimizer.iterations.numpy())
-        print(f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss")
+        print(
+            f"Optimizers number of iterations at the beginning: ",
+            dice_model.optimizer.iterations.numpy(),
+        )
+        print(
+            f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss"
+        )
         print(f"Restarting from checkpoint: {init_epoch}")
-        dataset = dataset.skip(init_batch+opts.wl2_epochs*opts.steps_per_epoch)
-        
+        dataset = dataset.skip(init_batch + opts.wl2_epochs * opts.steps_per_epoch)
+
         callbacks = build_callbacks(
             output_dir=output_dir,
             metric_type="dice",
@@ -183,6 +210,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             steps_per_epoch=opts.steps_per_epoch or None,
             callbacks=callbacks,
             initial_epoch=init_epoch,
+            validation_data=valid_dataset,
         )
 
     return results
@@ -193,37 +221,56 @@ def load_model(
     checkpoint: Path,
     metric_type: str,
     reinitialise_momentum: bool = False,
-    find_last_checkpoint: bool = True, 
-    load_after_wl2_pretraining: bool = False
-) -> Tuple[tf.keras.models.Model, bool, int]:
+    find_last_checkpoint: bool = True,
+    load_after_wl2_pretraining: bool = False,
+) -> Tuple[tf.keras.models.Model, bool, int, int]:
     is_compiled = False
     init_epoch = 0
     init_batch_idx = 0
 
     def find_last_ckpt(checkpoint, metric_type):
-        files = [el for el in glob.glob(f"{checkpoint}/{metric_type}*.keras", recursive=True)]
-        assert len(files)>0, f"Trying to load model for continuing training with {metric_type} loss, but suitable files were found"
-        files_pd = pd.DataFrame.from_records([
-            dict(
-            fullpath=el,
-            ckpt=int(str(Path(el).name).split("epoch-")[1].split(".keras")[0])
-            ) for el in files])
-        checkpoint = Path(max(list(files_pd[files_pd.ckpt==files_pd.ckpt.max()].fullpath), key=os.path.getctime)) 
+        files = [
+            el for el in glob.glob(f"{checkpoint}/{metric_type}*.keras", recursive=True)
+        ]
+        assert (
+            len(files) > 0
+        ), f"Trying to load model for continuing training with {metric_type} loss, but suitable files were found"
+        files_pd = pd.DataFrame.from_records(
+            [
+                dict(
+                    fullpath=el,
+                    ckpt=int(str(Path(el).name).split("epoch-")[1].split(".keras")[0]),
+                )
+                for el in files
+            ]
+        )
+        checkpoint = Path(
+            max(
+                list(files_pd[files_pd.ckpt == files_pd.ckpt.max()].fullpath),
+                key=os.path.getctime,
+            )
+        )
         return checkpoint
 
     if checkpoint is not None:
         if find_last_checkpoint:
             checkpoint = find_last_ckpt(checkpoint, metric_type)
             print(f"Model will continue from  {checkpoint}")
-        else: 
-            assert str(checkpoint).endswith(".keras"), f"Path provided to checkpoint file doesnt have '.keras' extension!"
+        else:
+            assert str(checkpoint).endswith(
+                ".keras"
+            ), f"Path provided to checkpoint file doesnt have '.keras' extension!"
             checkpoint = Path(checkpoint)
-            assert checkpoint.exists(), f"Trying to load model for continuing training, but path {checkpoint} doesn't exits"
+            assert (
+                checkpoint.exists()
+            ), f"Trying to load model for continuing training, but path {checkpoint} doesn't exits"
 
         if not load_after_wl2_pretraining:
-            assert metric_type in checkpoint.name, f"Trying to load model for continuing training with {metric_type} loss, but None were found"
+            assert (
+                metric_type in checkpoint.name
+            ), f"Trying to load model for continuing training with {metric_type} loss, but None were found"
             init_epoch = int(str(checkpoint.name).split("epoch-")[1].split(".keras")[0])
-        
+
         if (not reinitialise_momentum) & (metric_type in checkpoint.name):
             print("loading model with optimizer states.")
 
@@ -244,9 +291,8 @@ def load_model(
                 "tf": tf,
                 "keras": tf.keras,
                 "loss": IdentityLoss().loss,
-                "DiceLoss": DiceLoss, 
-                "WeightedL2Loss": WeightedL2Loss
-
+                "DiceLoss": DiceLoss,
+                "WeightedL2Loss": WeightedL2Loss,
             }
             model = tf.keras.models.load_model(
                 checkpoint, custom_objects=custom_objects
@@ -273,9 +319,15 @@ def build_callbacks(
     log_dir.mkdir(exist_ok=True)
 
     # model saving callback
-    save_file_name = os.path.join(output_dir, "%s_epoch-{epoch:03d}.keras" % metric_type)
+    save_file_name = os.path.join(
+        output_dir, "%s_epoch-{epoch:03d}.keras" % metric_type
+    )
 
-    callbacks = [tf.keras.callbacks.ModelCheckpoint(save_file_name, verbose=1, save_weights_only=False)]
+    callbacks = [
+        tf.keras.callbacks.ModelCheckpoint(
+            save_file_name, verbose=1, save_weights_only=False
+        )
+    ]
 
     # TensorBoard callback
     if metric_type == "dice":
