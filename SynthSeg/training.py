@@ -307,19 +307,20 @@ def training(labels_dir,
         checkpoint = os.path.join(model_dir, 'wl2_%03d.h5' % wl2_epochs)
 
     # fine-tuning with dice metric
-    dice_model = metrics.metrics_model(unet_model, segmentation_labels, 'dice')
-    results = train_model(
-        dice_model,
-        input_generator,
-        lr,
-        dice_epochs,
-        steps_per_epoch,
-        model_dir,
-        'dice',
-        checkpoint,
-        wandb=wandb,
-        wandb_log_freq=wandb_log_freq
-    )
+    if dice_epochs > 0:
+        dice_model = metrics.metrics_model(unet_model, segmentation_labels, 'dice')
+        results = train_model(
+            dice_model,
+            input_generator,
+            lr,
+            dice_epochs,
+            steps_per_epoch,
+            model_dir,
+            'dice',
+            checkpoint,
+            wandb=wandb,
+            wandb_log_freq=wandb_log_freq
+        )
 
     return results
 
@@ -359,9 +360,10 @@ def train_model(model,
     compile_model = True
     init_epoch = 0
     if path_checkpoint is not None:
-        if metric_type in path_checkpoint:
-            init_epoch = int(os.path.basename(path_checkpoint).split(metric_type)[1][1:-3])
-        if (not reinitialise_momentum) & (metric_type in path_checkpoint):
+        checkpoint_file_name = os.path.basename(path_checkpoint)
+        if metric_type in checkpoint_file_name:
+            init_epoch = int(checkpoint_file_name.split(metric_type)[1][1:-3])
+        if (not reinitialise_momentum) & (metric_type in checkpoint_file_name):
             custom_l2i = {key: value for (key, value) in getmembers(layers, isclass) if key != 'Layer'}
             custom_nrn = {key: value for (key, value) in getmembers(nrn_layers, isclass) if key != 'Layer'}
             custom_objects = {**custom_l2i, **custom_nrn, 'tf': tf, 'keras': tf.keras, 'loss': metrics.IdentityLoss().loss}
