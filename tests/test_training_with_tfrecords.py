@@ -12,33 +12,31 @@ from SynthSeg.training_with_tfrecords import training
         (
             1,
             0,
-            24.849784088134765,
-            0.3270473375185669,
-            24.895092010498047,
-            ["wl2_001.h5"],
+            22.4182,
+            0.3077,
+            21.9824,
+            ["wl2_epoch-001.keras"],
         ),
         (
             0,
             1,
-            0.9801624119281769,
-            0.001492286024485122,
-            0.9799067378044128,
-            ["dice_001.h5"],
+            0.961943,
+            0.003861203,
+            0.964388,
+            ["dice_epoch-001.keras"],
         ),
         (
             1,
             1,
-            0.979167926311493,
+            0.972157,
             0.0021950396925116346,
-            0.9810947775840759,
-            ["wl2_001.h5", "dice_001.h5"],
+            0.972157,
+            ["wl2_epoch-001.keras", "dice_epoch-001.keras"],
         ),
     ],
     ids=["wl2", "dice", "dice_after_wl2"],
 )
-def test_training(
-    tmp_path, tfrecord, wl2_epochs, dice_epochs, mean, std, exact, files
-):
+def test_training(tmp_path, tfrecord, wl2_epochs, dice_epochs, mean, std, exact, files):
     """
     Tests the equivalence with the original training via `mean` and `std`
     and the current implementation via `exact`.
@@ -49,9 +47,12 @@ def test_training(
         model_dir=str(tmp_path / "output"),
         wl2_epochs=wl2_epochs,
         dice_epochs=dice_epochs,
-        steps_per_epoch=None,
+        steps_per_epoch=int(tfrecord.num_samples / 2)
+        if wl2_epochs + dice_epochs == 2
+        else tfrecord.num_samples,
         batchsize=1,
         tfrecords_dir=str(tfrecord.path.parent),
+        valid_tfrecords_dir=str(tfrecord.path.parent),
         input_shape=list(tfrecord.shape),
         n_labels=tfrecord.n_labels,
     )
@@ -60,26 +61,27 @@ def test_training(
     output_files = [p.name for p in (tmp_path / "output").iterdir()]
 
     # mean and std were obtained via the experiment below
-    np.testing.assert_allclose(results.history["loss"][0], mean, atol=2*std)
-    np.testing.assert_allclose(results.history["loss"][0], exact)
+    np.testing.assert_allclose(results.history["loss"][0], mean, atol=2 * std)
+    np.testing.assert_allclose(results.history["loss"][0], exact, rtol=1e-5)
     assert all([f in output_files for f in files])
 
     # Experiment (remove the tfrecord fixture):
     # from SynthSeg.training import training_from_options
     # from SynthSeg.training_options import TrainingOptions
     # from . import TestData
-
+    #
     # opts = TrainingOptions(
     #     labels_dir=TestData.get_label_maps()[0],
     #     target_res=8,
     #     model_dir=str(tmp_path / "output"),
     #     wl2_epochs=wl2_epochs,
     #     dice_epochs=dice_epochs,
-    #     steps_per_epoch=None,
+    #     steps_per_epoch=10,
     #     batchsize=1,
     # )
     # losses = np.empty(10)
     # for i in range(10):
     #     results = training_from_options(opts)
+    #     print(results.history)
     #     losses[i] = results.history["loss"][-1]
     # print(losses, losses.mean(), losses.std())

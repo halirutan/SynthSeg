@@ -19,6 +19,7 @@ class TestTFRecord:
     label_maps: List[str]
     target_res: int
     dataset: tf.data.Dataset
+    num_samples: int
 
 
 @pytest.fixture(scope="session")
@@ -66,9 +67,9 @@ def tfrecord(tmp_path_factory) -> TestTFRecord:
 
     label_map_files = TestData.get_label_maps()
 
-    brain_generator = BrainGenerator(label_map_files[0], target_res=8, batchsize=2)
+    brain_generator = BrainGenerator(label_map_files[0], target_res=8)
     tfrecord_path = tmp_path_factory.mktemp("tfrecords") / "test.tfrecord"
-    brain_generator.generate_tfrecord(tfrecord_path)
+    brain_generator.generate_tfrecord(tfrecord_path, batch_size=10)
     dataset = read_tfrecords([tfrecord_path])
 
-    return TestTFRecord(tfrecord_path, (32, 32, 32, 1), 53, label_map_files, 8, dataset)
+    return TestTFRecord(tfrecord_path, (32, 32, 32, 1), 53, label_map_files, 8, dataset, 10)
