@@ -1,6 +1,6 @@
 import pathlib
 import os.path
-from typing import List
+from typing import List, Optional
 import subprocess
 
 
@@ -14,7 +14,7 @@ def get_git_branch() -> str:
     try:
         branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('utf-8').strip()
     except subprocess.CalledProcessError:
-        branch = "Unknown"
+        branch = "unknown_branch"
     return branch
 
 
@@ -52,7 +52,7 @@ class TestData:
         return (TestData.synth_seg_path / "testdata").absolute()
 
     @classmethod
-    def get_test_output_dir(cls) -> pathlib.Path:
+    def get_test_output_dir(cls, sub_dir: Optional[str] = None) -> pathlib.Path:
         """
         Provides (and ensures it exists) a temporary test output directory inside the project
         folder and creates it otherwise.
@@ -60,7 +60,9 @@ class TestData:
         Returns:
             The absolute path to the temporary test output folder in the project directory
         """
-        output_dir = (TestData.synth_seg_path / "test_output" / TestData.git_branch).absolute()
+        if sub_dir is None:
+            sub_dir = TestData.git_branch
+        output_dir = (TestData.synth_seg_path / "test_output" / sub_dir).absolute()
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         return output_dir

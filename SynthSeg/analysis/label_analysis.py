@@ -137,7 +137,7 @@ def analyze_scan_and_label(scan_file: str, label_file: str, settings: Statistics
             - "left_regions": A sorted list of tissue types found in regions specific to the left side.
             - "right_regions": A sorted list of tissue types found in regions specific to the right side.
     """
-    import freesurfer_tools as fsl_tools
+    import SynthSeg.analysis.freesurfer_tools as fsl_tools
 
     label_img = nib.load(label_file)
     label_data = label_img.get_fdata()

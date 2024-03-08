@@ -26,25 +26,19 @@ class Options:
     output_directory: Optional[str] = None
 
 
-def main():
-    parser = ArgumentParser()
-    # noinspection PyTypeChecker
-    parser.add_arguments(Options, "general")
-    args = parser.parse_args()
-    arguments: Options = args.general
-
-    if not arguments.input_file:
+def tfrecord_to_nifty(opts: Options) -> None:
+    if not opts.input_file:
         logger.error("Please provide a valid .tfrecord file")
         exit(-1)
 
-    tfrecord_file = get_absolute_path(arguments.input_file)
+    tfrecord_file = get_absolute_path(opts.input_file)
     if isinstance(tfrecord_file, str) and os.path.isfile(tfrecord_file) and os.access(tfrecord_file, os.R_OK):
         logger.info(f"Seems I can read {tfrecord_file}")
     else:
         logger.error(f"Could not read {tfrecord_file}")
         exit(-1)
 
-    output_path = Path(arguments.output_directory or os.path.dirname(tfrecord_file))
+    output_path = Path(opts.output_directory or os.path.dirname(tfrecord_file))
     output_path.mkdir(parents=True, exist_ok=True)
     if not os.access(output_path, os.W_OK):
         logger.error(f"Output directory {output_path} is not writable")
@@ -75,6 +69,15 @@ def main():
             None,
             str(labels_output_path / f"{file_name}.nii.gz"),
         )
+
+
+def main():
+    parser = ArgumentParser()
+    # noinspection PyTypeChecker
+    parser.add_arguments(Options, "general")
+    args = parser.parse_args()
+    arguments: Options = args.general
+    tfrecord_to_nifty(arguments)
 
 
 if __name__ == '__main__':

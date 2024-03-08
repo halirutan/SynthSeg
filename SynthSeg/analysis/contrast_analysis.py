@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 import nibabel as nib
 
@@ -36,7 +36,7 @@ def clip_and_rescale_nifti(nifti_file: str,
                            min_clip: Optional[float] = None,
                            max_clip: Optional[float] = None,
                            min_out: float = 0.0,
-                           max_out: float = 255.0):
+                           max_out: float = 1.0):
     """
     Windows and rescales the values in a NIfTI image to a specified range.
     Wrapper around the `clip_and_rescale_intensity` function.
@@ -55,6 +55,16 @@ def clip_and_rescale_nifti(nifti_file: str,
     nib.save(nib.Nifti1Image(
         clip_and_rescale_intensity(data, min_clip, max_clip, min_out, max_out),
         img.affine, img.header), out_file)
+
+
+def combine_nifti_files(nifti_files: List[str],
+                        output_file: str,
+                        scale_min: float = 0.0,
+                        scale_max: float = 255.0) -> None:
+    img = nib.load(nifti_files[0])
+    data = np.stack([nib.load(file).get_fdata() for file in nifti_files], axis=-1)
+    data = (data - data.min()) / (data.max() - data.min())
+    nib.save(nib.Nifti1Image(data, img.affine, img.header), output_file)
 
 
 def calculate_winsorized_statistics(data: np.ndarray, percentile: float) -> tuple[float, float]:
