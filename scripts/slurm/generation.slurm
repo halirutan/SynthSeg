@@ -1,7 +1,7 @@
 #!/bin/bash -l
 # Standard output and error:
-#SBATCH -o ./job.out.%j
-#SBATCH -e ./job.err.%j
+#SBATCH -o ./job_logs/job.out.%j
+#SBATCH -e ./job_logs/job.err.%j
 # Initial working directory:
 #SBATCH -D ./
 # Job name
@@ -15,10 +15,10 @@
 #
 #SBATCH --mail-type=none
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
-#SBATCH --time=00:10:00
+#SBATCH --time=08:00:00
 
 
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/test
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v1
 config_file=${output_dir}/config.yml
 
 module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
@@ -40,16 +40,16 @@ export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_HOME}"
 export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
 
 # ---
-nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
-NVIDIASMI_PID=$!
+#nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
+#NVIDIASMI_PID=$!
 
 srun python generation.py \
 --output_dir=${output_dir} \
 --config_file=${config_file} \
 --tfrecord \
---count=20 \
---start_int=$(($SLURM_ARRAY_TASK_ID*20)) \
+--count=2000 \
+--start_int=$(($SLURM_ARRAY_TASK_ID*2000)) \
 2>&1 | tee -a generation${SLURM_ARRAY_TASK_ID}.log
 
-kill $NVIDIASMI_PID
+#kill $NVIDIASMI_PID
 
