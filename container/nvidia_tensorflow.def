@@ -11,13 +11,12 @@ pip install simple-parsing>=0.1.2
 pip install tqdm==4.62.3
 pip install matplotlib==3.4.3
 pip install seaborn==0.11.2
+# If you want to use this container as kernel in jupyter
+pip install ipython ipykernel
 
 %environment
 
-# Avoid CUPTI warning message
-export LD_LIBRARY_PATH=${CUDA_HOME}/extras/CUPTI/lib64:${LD_LIBRARY_PATH}
 export TF_FORCE_GPU_ALLOW_GROWTH=true
-export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_HOME}"
 # enable autoclustering for CPU and GPU
 export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
 
@@ -26,8 +25,8 @@ export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
 %runscript
 
 %labels
-  author Nastassya Horlava
-  version 1.0
+  author Nastassya Horlava, David Carreto Fidalgo
+  version 1.1
 
 %help
   The converted Docker image for NVIDIAs Tensorflow (version 2.14).
