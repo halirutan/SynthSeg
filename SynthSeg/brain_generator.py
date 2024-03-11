@@ -374,7 +374,7 @@ class BrainGenerator:
         labelss = []
         for batch in range(batch_size):
             model_inputs = next(self.model_inputs_generator)
-            tmp_image, tmp_label = self.labels_to_image_model.predict(model_inputs)
+            tmp_image, tmp_label = self.labels_to_image_model(model_inputs, training=False)
             images.append(tmp_image[0])
             labelss.append(tmp_label[0])
 
