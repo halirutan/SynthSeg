@@ -322,6 +322,7 @@ class BrainGenerator:
             model_inputs = next(self.model_inputs_generator)
             image, labels = self.labels_to_image_model(model_inputs, training=False)
             image, labels = image.numpy(), labels.numpy()
+            # image, labels = self.labels_to_image_model.predict(model_inputs)
             yield image, labels
 
     def generate_brain(self):
@@ -330,9 +331,7 @@ class BrainGenerator:
         image, labels = self._put_in_native_space(image, labels)
         return image, labels
 
-    def _put_in_native_space(
-        self, image: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _put_in_native_space(self, image: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Helper method to put images/labels back in native space"""
         list_images = list()
         list_labels = list()
@@ -346,10 +345,7 @@ class BrainGenerator:
 
         return image, labels
 
-    # TODO: David, why do we use an additional batch_size argument, when this is already stored in self.batch_size?
-    def generate_tfrecord(
-        self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
-    ) -> Path:
+    def generate_tfrecord(self, file: Union[str, Path], compression_type: str = "") -> Path:
         """Generate data for the `training_with_tfrecords` module.
 
         The file will contain `self.batchsize` image-label pairs.
@@ -357,7 +353,6 @@ class BrainGenerator:
         Args:
             file: Path to the output file. We will add a '.tfrecord' extension if not specified.
             compression_type: One of "GZIP", "ZLIB" or "" (no compression).
-            batch_size: Number of training pairs to put into one tfrecord file.
 
         Returns:
             Absolute path to the output file.
@@ -367,8 +362,6 @@ class BrainGenerator:
 
         if file.suffix != ".tfrecord":
             file = file.parent / (file.name + ".tfrecord")
-
-        assert batch_size >= 1, "Batch size must be a positive integer"
 
         output_labels = np.unique(self.output_labels)
         (images, labels) = next(self.brain_generator)
@@ -402,7 +395,7 @@ class BrainGenerator:
                 # write to file
                 writer.write(example.SerializeToString())
 
-        print(f"Wrote {batch_size} image-label pairs to {file}, "
+        print(f"Wrote {self.batchsize} image-label pairs to {file}, "
               f"image shape: {self.model_output_shape}, n_labels: {len(output_labels)}")
 
         return file.absolute()

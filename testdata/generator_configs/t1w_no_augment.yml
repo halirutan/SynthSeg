@@ -1,6 +1,6 @@
-batchsize: 2
-bias_field_std: 0.5
-bias_scale: 0.025
+batchsize: 4
+bias_field_std: 0.0
+bias_scale: 0.0
 data_res: null
 flipping: false
 generation_classes: [0, 1, 2, 3, 4, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
@@ -15,8 +15,8 @@ max_res_iso: 0.0
 mix_prior_and_random: false
 n_channels: 1
 n_neutral_labels: 18
-nonlin_scale: 0.04
-nonlin_std: 3.0
+nonlin_scale: 0.0
+nonlin_std: 0.0
 output_div_by_n: null
 output_labels: [0, 14, 15, 16, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 4,
   5, 7, 8, 10, 11, 12, 13, 17, 18, 0, 26, 28, 0, 0, 0, 41, 42, 43, 44, 46, 47, 49,
@@ -67,12 +67,11 @@ prior_stds:
   0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
 randomise_res: false
 return_gradients: false
-rotation_bounds: 20
-scaling_bounds: 0.02
-shearing_bounds: 0.015
+rotation_bounds: 0
+scaling_bounds: 0.0
+shearing_bounds: 0.0
 subjects_prob: null
-# TODO: Decrease target_res once we're sure it works
-target_res: 1.0
+target_res: 3.0
 thickness: null
 translation_bounds: 0.0
 use_specific_stats_for_channel: true

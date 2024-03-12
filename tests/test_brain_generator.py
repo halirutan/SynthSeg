@@ -14,8 +14,8 @@ from SynthSeg.logging_utils import get_logger
 logger = get_logger("BrainGeneratorTest")
 
 
-def get_generator_config() -> bg_opts.GeneratorOptions:
-    generator_config_file = TestData.get_test_data_dir() / "generator_configs" / "t1w_pdw.yml"
+def get_generator_config(name: str) -> bg_opts.GeneratorOptions:
+    generator_config_file = TestData.get_test_data_dir() / "generator_configs" / name
     generator_options = (bg_opts.GeneratorOptions.load(generator_config_file)
                          .with_absolute_paths(str(generator_config_file))
                          .convert_lists_to_numpy())
@@ -24,7 +24,7 @@ def get_generator_config() -> bg_opts.GeneratorOptions:
 
 def test_brain_generator():
     tf.keras.utils.set_random_seed(43)
-    brain_generator = bg.create_brain_generator(get_generator_config())
+    brain_generator = bg.create_brain_generator(get_generator_config("t1w.yml"))
     im, lab = brain_generator.generate_brain()
     if TestData.debug_nifti_output:
         # TODO: This won't work because im and lab are not TF tensors.
@@ -38,16 +38,51 @@ def test_brain_generator():
     ), "Shape of the label image and the generated MRI are not the same"
 
 
+def test_batchsize_contrast_behavior():
+    test_batch_sizes = [1, 2, 4]
+    first_images = []
+
+    change_batch_size_in_generator = True
+
+    if change_batch_size_in_generator:
+        config = get_generator_config("t1w_no_augment.yml")
+        brain_generator = bg.create_brain_generator(config)
+
+    for batchsize in test_batch_sizes:
+        tf.keras.utils.set_random_seed(43)
+        if change_batch_size_in_generator:
+            brain_generator.batchsize = batchsize
+        else:
+            config = get_generator_config("t1w_no_augment.yml")
+            config.batchsize = batchsize
+            brain_generator = bg.create_brain_generator(config)
+        im, _ = brain_generator.generate_brain()
+        if batchsize == 1:
+            first_images.append(im)
+        else:
+            first_images.append(im[0])
+
+    if TestData.debug_nifti_output:
+        for i, img in enumerate(first_images):
+            nib.save(
+                nib.Nifti1Image(img, np.eye(4)),
+                TestData.get_test_output_dir() / f"batched_comparison_{i}.nii",
+            )
+
+    for comparison_image in first_images[1:]:
+        np.testing.assert_array_equal(first_images[0], comparison_image)
+
+
 def test_tfrecords():
     tf.keras.utils.set_random_seed(43)
-    generator_config = get_generator_config()
+    generator_config = get_generator_config("t1w.yml")
     brain_generator = bg.create_brain_generator(generator_config)
 
     image, labels = brain_generator.generate_brain()
 
     tf.keras.utils.set_random_seed(43)
-    tfrecord = TestData.get_test_output_dir() / "test.tfrecord"
-    brain_generator.generate_tfrecord(tfrecord, batch_size=generator_config.batchsize)
+    tfrecord = TestData.get_test_output_dir("t1w.yml") / "test.tfrecord"
+    brain_generator.generate_tfrecord(tfrecord)
     image2, labels2 = brain_generator.tfrecord_to_brain(tfrecord)
 
     for i in range(image.shape[0]):
@@ -61,8 +96,8 @@ def test_tfrecords():
             TestData.get_test_output_dir() / f"brain_tfrecords_{i}.nii",
         )
 
-    # np.testing.assert_array_equal(image, image2)
-    # np.testing.assert_array_equal(labels, labels2)
+    np.testing.assert_array_equal(image, image2)
+    np.testing.assert_array_equal(labels, labels2)
 
 
 def test_tfrecords_compression(tmp_path):
