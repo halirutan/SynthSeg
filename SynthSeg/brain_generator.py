@@ -320,7 +320,8 @@ class BrainGenerator:
     def _build_brain_generator(self):
         while True:
             model_inputs = next(self.model_inputs_generator)
-            [image, labels] = self.labels_to_image_model.predict(model_inputs)
+            image, labels = self.labels_to_image_model(model_inputs, training=False)
+            image, labels = image.numpy(), labels.numpy()
             yield image, labels
 
     def generate_brain(self):
@@ -345,6 +346,7 @@ class BrainGenerator:
 
         return image, labels
 
+    # TODO: David, why do we use an additional batch_size argument, when this is already stored in self.batch_size?
     def generate_tfrecord(
         self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
     ) -> Path:
@@ -369,24 +371,17 @@ class BrainGenerator:
         assert batch_size >= 1, "Batch size must be a positive integer"
 
         output_labels = np.unique(self.output_labels)
-
-        images = []
-        labelss = []
-        for batch in range(batch_size):
-            model_inputs = next(self.model_inputs_generator)
-            tmp_image, tmp_label = self.labels_to_image_model(model_inputs, training=False)
-            images.append(tmp_image[0])
-            labelss.append(tmp_label[0])
+        (images, labels) = next(self.brain_generator)
 
         with tf.io.TFRecordWriter(
             str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
         ) as writer:
-            for image, labels in zip(images, labelss):
+            for image, label in zip(images, labels):
                 # remove channel dim in labels
-                labels = labels[..., 0]
+                label = label[..., 0]
 
                 # convert labels to continuous range
-                labels = layers.ConvertLabels(output_labels)(labels)
+                label = layers.ConvertLabels(output_labels)(label)
 
                 # create tf example
                 features = {
@@ -397,7 +392,7 @@ class BrainGenerator:
                     ),
                     "labels": tf.train.Feature(
                         bytes_list=tf.train.BytesList(
-                            value=[tf.io.serialize_tensor(labels).numpy()]
+                            value=[tf.io.serialize_tensor(label).numpy()]
                         )
                     ),
                 }
