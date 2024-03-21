@@ -320,7 +320,9 @@ class BrainGenerator:
     def _build_brain_generator(self):
         while True:
             model_inputs = next(self.model_inputs_generator)
-            [image, labels] = self.labels_to_image_model.predict(model_inputs)
+            image, labels = self.labels_to_image_model(model_inputs, training=False)
+            image, labels = image.numpy(), labels.numpy()
+            # image, labels = self.labels_to_image_model.predict(model_inputs)
             yield image, labels
 
     def generate_brain(self):
@@ -329,9 +331,7 @@ class BrainGenerator:
         image, labels = self._put_in_native_space(image, labels)
         return image, labels
 
-    def _put_in_native_space(
-        self, image: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _put_in_native_space(self, image: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Helper method to put images/labels back in native space"""
         list_images = list()
         list_labels = list()
@@ -345,9 +345,7 @@ class BrainGenerator:
 
         return image, labels
 
-    def generate_tfrecord(
-        self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
-    ) -> Path:
+    def generate_tfrecord(self, file: Union[str, Path], compression_type: str = "") -> Path:
         """Generate data for the `training_with_tfrecords` module.
 
         The file will contain `self.batchsize` image-label pairs.
@@ -355,7 +353,6 @@ class BrainGenerator:
         Args:
             file: Path to the output file. We will add a '.tfrecord' extension if not specified.
             compression_type: One of "GZIP", "ZLIB" or "" (no compression).
-            batch_size: Number of training pairs to put into one tfrecord file.
 
         Returns:
             Absolute path to the output file.
@@ -366,27 +363,18 @@ class BrainGenerator:
         if file.suffix != ".tfrecord":
             file = file.parent / (file.name + ".tfrecord")
 
-        assert batch_size >= 1, "Batch size must be a positive integer"
-
         output_labels = np.unique(self.output_labels)
-
-        images = []
-        labelss = []
-        for batch in range(batch_size):
-            model_inputs = next(self.model_inputs_generator)
-            tmp_image, tmp_label = self.labels_to_image_model(model_inputs, training=False)
-            images.append(tmp_image[0])
-            labelss.append(tmp_label[0])
+        (images, labels) = next(self.brain_generator)
 
         with tf.io.TFRecordWriter(
             str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
         ) as writer:
-            for image, labels in zip(images, labelss):
+            for image, label in zip(images, labels):
                 # remove channel dim in labels
-                labels = labels[..., 0]
+                label = label[..., 0]
 
                 # convert labels to continuous range
-                labels = layers.ConvertLabels(output_labels)(labels)
+                label = layers.ConvertLabels(output_labels)(label)
 
                 # create tf example
                 features = {
@@ -397,7 +385,7 @@ class BrainGenerator:
                     ),
                     "labels": tf.train.Feature(
                         bytes_list=tf.train.BytesList(
-                            value=[tf.io.serialize_tensor(labels).numpy()]
+                            value=[tf.io.serialize_tensor(label).numpy()]
                         )
                     ),
                 }
@@ -407,7 +395,7 @@ class BrainGenerator:
                 # write to file
                 writer.write(example.SerializeToString())
 
-        print(f"Wrote {batch_size} image-label pairs to {file}, "
+        print(f"Wrote {self.batchsize} image-label pairs to {file}, "
               f"image shape: {self.model_output_shape}, n_labels: {len(output_labels)}")
 
         return file.absolute()
