@@ -1,0 +1,19 @@
+{
+ "argv": [
+  "apptainer",
+  "exec",
+  "--bind",
+  "{connection_file}:/tmp/connection-spec",
+  "/u/dcfidalgo/projects/cbs/segmentation/SynthSeg/container/nvidia_tensorflow.sif",
+  "python",
+  "-m",
+  "ipykernel_launcher",
+  "-f",
+  "/tmp/connection-spec"
+ ],
+ "display_name": "Python (SynthSeg container)",
+ "language": "python",
+ "metadata": {
+  "debugger": true
+ }
+}

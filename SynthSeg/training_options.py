@@ -329,6 +329,11 @@ class TrainingOptions(Serializable, OptionsBase):
     Path to the directory that contains the TFRecords. Only needed when training with TFRecords.
     """
 
+    valid_tfrecords_dir: Optional[str] = None
+    """
+    Path to the directory that contains the TFRecords for validation. Only considered when training with TFRecords.
+    """
+
     compression_type: str = ""
     """
     One of "GZIP", "ZLIB" or "" (no compression).

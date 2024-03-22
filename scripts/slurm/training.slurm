@@ -19,39 +19,38 @@
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
 #SBATCH --time=24:00:00
 
-cfg_file=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v1/config.yml
+cfg_file=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2/config.yml
+sif_file=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg/container/nvidia_tensorflow.sif
+
+code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
+data_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2
+
 
 module purge
-module load anaconda/3/2021.11 scikit-learn/1.1.1 tensorflow/gpu-cuda-11.6/2.11.0 keras/2.11.0 tensorboard/2.11.0
-source ${HOME}/venvs/synthseg/bin/activate
+module load apptainer/1.2.2
 
-# Useful for debugging
-#export NCCL_DEBUG=INFO
-
-# in case WANDB is used set WANDB_BASE_URL and WANDB_API_KEY
-export WANDB_BASE_URL="http://10.186.1.194:80"
-export WANDB_API_KEY="local-3277de3bee22b1c6c3e074cfc1d73b7b169f5d41"
-export WANDB_PROJECT="synthseg"
-export WANDB_NAME="v1"
-
-# --- TF related flags (provided by Tim) ---
-
-# Avoid CUPTI warning message
-export LD_LIBRARY_PATH=${CUDA_HOME}/extras/CUPTI/lib64:${LD_LIBRARY_PATH}
-
-# Avoid OOM
-export TF_FORCE_GPU_ALLOW_GROWTH=true
-
-## XLA
-# cuda aware
-export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_HOME}"
-# enable autoclustering for CPU and GPU
-export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
-
-# ---
 nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
 NVIDIASMI_PID=$!
 
-srun python training.py --cfg_file=$cfg_file
+apptainer_opts=(
+  --nv
+  -B $code_dir,$data_dir,$output_dir
+  --env PYTHONPATH=$code_dir
+  # in the container this is set to true by default
+  --env TF_FORCE_GPU_ALLOW_GROWTH=true
+  # enable autoclustering for CPU and GPU
+  #--env TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
+  # Useful for debugging
+  #--env NCCL_DEBUG=INFO
+  --env WANDB_BASE_URL="http://10.186.1.194:80"
+  --env WANDB_API_KEY="local-3277de3bee22b1c6c3e074cfc1d73b7b169f5d41"
+  --env WANDB_PROJECT="synthseg"
+  --env WANDB_NAME="v2"
+)
+	
+srun apptainer exec \
+  "${apptainer_opts[@]}" \
+  $sif_file python $code_dir/scripts/slurm/training.py --cfg_file=$cfg_file
 
 kill $NVIDIASMI_PID
