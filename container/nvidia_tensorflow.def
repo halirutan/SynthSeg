@@ -5,7 +5,7 @@ From: nvcr.io/nvidia/tensorflow:23.12-tf2-py3
 
 pip install nibabel==4.0.2
 pip install Pillow==9.3.0
-pip install wandb==0.14.0
+pip install wandb==0.16.4
 pip install pytest==7.2.2
 pip install simple-parsing>=0.1.2
 pip install tqdm==4.62.3
@@ -15,10 +15,6 @@ pip install seaborn==0.11.2
 pip install ipython ipykernel
 
 %environment
-
-export TF_FORCE_GPU_ALLOW_GROWTH=true
-# enable autoclustering for CPU and GPU
-export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
 
 %files
 
@@ -32,3 +28,4 @@ export TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
   The converted Docker image for NVIDIAs Tensorflow (version 2.14).
 
 %test
+
