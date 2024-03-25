@@ -78,6 +78,12 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
     load_after_wl2_pretraining = False
+    
+    if opts.mlflow:
+        import mlflow        
+        set_mlflow_tracking(mlflow_log_freq = opts.mlflow_log_freq)
+        mlflow.log_params({key: item for key, item in os.environ.items() if "SLURM" in key or "SBATCH" in key})
+        mlflow.log_params(opts.__dict__)
 
     # Define and compile model
 
@@ -137,6 +143,8 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wandb=opts.wandb,
             wandb_log_freq=opts.wandb_log_freq,
             training_opts=opts,
+            mlflow=opts.mlflow, 
+            mlflow_log_freq=opts.mlflow_log_freq
         )
 
         # fit
@@ -202,6 +210,8 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             wandb=opts.wandb,
             wandb_log_freq=opts.wandb_log_freq,
             training_opts=opts,
+            mlflow=opts.mlflow, 
+            mlflow_log_freq=opts.mlflow_log_freq
         )
 
         results = dice_model.fit(
@@ -212,6 +222,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             initial_epoch=init_epoch,
             validation_data=valid_dataset,
         )
+        
+    if opts.mlflow:
+        mlflow.end_run()
 
     return results
 
@@ -312,6 +325,8 @@ def build_callbacks(
     metric_type,
     wandb: bool = False,
     wandb_log_freq: Union[str, int] = "epoch",
+    mlflow: bool = False,
+    mlflow_log_freq: Union[str, int] = "epoch",
     training_opts: Optional[TrainingOptions] = None,
 ):
     # create log folder
@@ -344,5 +359,48 @@ def build_callbacks(
 
         wandbm.init(config=asdict(training_opts) if training_opts else None)
         callbacks.append(WandbMetricsLogger(log_freq=wandb_log_freq))
+        
+    if mlflow:
+        from mlflow.tensorflow.callback import MLflowCallback 
+        
+        if mlflow_log_freq == "epoch":
+            kwargs = dict(log_every_epoch = True,log_every_n_steps=None)
+        elif mlflow_log_freq == "batch":
+            kwargs = dict(log_every_epoch = False,log_every_n_steps=1)
+        elif isinstance(mlflow_log_freq, int):
+            kwargs = dict(log_every_epoch = False,log_every_n_steps=mlflow_log_freq)
+        else: 
+            kwargs = {}
+            # MLflowCallback(mlflow_run)
+        callbacks.append(MLflowCallback(**kwargs))
+        
+        # pass
+        
 
     return callbacks
+
+def set_mlflow_tracking(mlflow_log_freq):
+    import configparser
+    import mlflow
+    from mlflow.tensorflow.callback import MLflowCallback 
+
+    config = configparser.ConfigParser()
+    config.read(os.environ["MLFLOW_CONFIG"])
+    mlflow.set_tracking_uri(config['HPC_CLOUD']["URI"])
+
+    os.environ['MLFLOW_TRACKING_USERNAME'] = config["LOGIN"]["USERNAME"]
+    os.environ['MLFLOW_TRACKING_PASSWORD'] =  config["LOGIN"]["PASSWORD"]
+    mlflow.set_experiment(config['MLFLOW']["EXPERIMENT"])
+
+    # if mlflow_log_freq == "epoch":
+    #     kwargs = dict(log_every_epoch = True,log_every_n_steps=None)
+    # elif mlflow_log_freq == "batch":
+    #     kwargs = dict(log_every_epoch = False,log_every_n_steps=1)
+    # elif isinstance(mlflow_log_freq, int):
+    #     kwargs = dict(log_every_epoch = False,log_every_n_steps=mlflow_log_freq)
+    # else: 
+    #     kwargs = {}
+        
+    mlflow.tensorflow.autolog(disable = True, )
+        # log_models = False, log_datasets = False, checkpoint = False, **kwargs)
+    mlflow.start_run(log_system_metrics=True)

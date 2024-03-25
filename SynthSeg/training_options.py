@@ -321,6 +321,18 @@ class TrainingOptions(Serializable, OptionsBase):
     If "batch", logs metrics at the end of each batch. If an integer, logs metrics at the end of that
     many batches.
     """
+    
+    mlflow: bool = False
+    """
+    Add a mlflow callback when training with the Dice loss function.
+    """
+
+    mlflow_log_freq: Union[int, str] = "epoch"
+    """
+    if "epoch", logs metrics at the end of each epoch.
+    If "batch", logs metrics at the end of each batch. If an integer, logs metrics at the end of that
+    many batches.
+    """
 
     # Only for training_with_tfrecords
 
