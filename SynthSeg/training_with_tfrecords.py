@@ -18,8 +18,8 @@ from .training_options import TrainingOptions
 from .brain_generator import read_tfrecords
 from mlflow.tensorflow.callback import MLflowCallback 
 import mlflow
-
-
+import signal
+import functools
 
 class NullStrategy:
     @staticmethod
@@ -36,27 +36,21 @@ class MLFlowTracking:
     @staticmethod
     def scope():
         set_mlflow_tracking()
-        
-        # mlflow.start_run(log_system_metrics=True)
-        # return mlflow.active_run()
-        
         return mlflow.start_run(log_system_metrics=True)
          
-
-
-def tracking_context(use_mlflow):
-    if use_mlflow:
-        # Start MLflow run and return its context
-        set_mlflow_tracking()
-        
-        
-        mlflow.start_run(log_system_metrics=True)
-        return mlflow.active_run()
-        # return nullcontext()
-        
-    else:
-        # Return null context
-        return nullcontext()
+    
+def signal_handler(use_mlflow, signum, frame, ):
+    """
+    Signal handler function to catch cancellation signals.
+    """
+    print("Received cancellation signal. Cleaning up...", signum)
+    # Add cleanup actions here, such as saving model state or logging metrics
+    # For example, you can log an intermediate metric to MLflow before exiting
+    # mlflow.log_metric("training_status", "cancelled")
+    if use_mlflow: 
+        mlflow.end_run("KILLED")
+    # Exit gracefully after cleanup
+    exit(1)
     
 def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     """Train the U-net with a TFRecord Dataset.
@@ -67,7 +61,12 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     # Check epochs
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
-
+    
+    signal.signal(signal.SIGINT, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    signal.signal(signal.SIGHUP, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    signal.signal(signal.SIGTERM, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    signal.signal(signal.SIGPIPE, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
     ), "either wl2_epochs or dice_epochs must be positive, had {0} and {1}".format(
@@ -76,6 +75,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
     if opts.mixed_precision is True:
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
+        tf.config.optimizer.set_experimental_options({"auto_mixed_precision": True})
 
     # Define distributed strategy
     if opts.strategy == "null":
@@ -86,10 +86,10 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         raise NotImplementedError(f"The '{opts.strategy}' strategy is not implemented.")
     
     
-    if opts.mlflow == False:
-        tracking = NullTracking()
-    else:
+    if opts.mlflow:
         tracking = MLFlowTracking()
+    else:
+        tracking = NullTracking()
 
     output_dir = Path(opts.model_dir)
 
@@ -172,6 +172,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     results = None
     
     with tracking.scope() as tracking_run:
+    
         if opts.wl2_epochs > 0 and checkpoint is None:
             callbacks = build_callbacks(
                 output_dir=output_dir,
@@ -257,10 +258,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
                 callbacks=callbacks,
                 initial_epoch=init_epoch,
                 validation_data=valid_dataset,
-            )
-                
-    if opts.mlflow:
-        mlflow.end_run()
+            )           
 
     return results
 
@@ -432,7 +430,6 @@ class MLflowCustomCallback(MLflowCallback):
         
         
         metrics = {f"train_{k}" if not any(k.startswith(prefix) for prefix in ["val_", "test_", "train_"]) else k: v for k, v in self.transform_logs(logs).items()}
-        print(metrics)
         mlflow.log_metrics(metrics, step=epoch, synchronous=False)
 
 
@@ -445,8 +442,6 @@ class MLflowCustomCallback(MLflowCallback):
         if current_iteration % self.log_every_n_steps == 0:
             
             metrics = {"train_" + k: v for k, v in self.transform_logs(logs).items()}
-            print(metrics)
-            
             mlflow.log_metrics(metrics, step=current_iteration, synchronous=False)
 
 
@@ -459,8 +454,6 @@ class MLflowCustomCallback(MLflowCallback):
         
         
         metrics = {"val_" + k: v for k, v in self.transform_logs(logs).items()}
-        print(metrics)
-        
         mlflow.log_metrics(metrics,  step=current_iteration, synchronous=False)
     
         
@@ -482,5 +475,3 @@ def set_mlflow_tracking():
     os.environ['MLFLOW_TRACKING_PASSWORD'] =  config["LOGIN"]["PASSWORD"]
     mlflow.set_experiment(config['MLFLOW']["EXPERIMENT"])        
     mlflow.tensorflow.autolog(disable = True, )
-        # log_models = False, log_datasets = False, checkpoint = False, **kwargs)
-    # mlflow.start_run(log_system_metrics=True)

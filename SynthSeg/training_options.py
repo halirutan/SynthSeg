@@ -430,6 +430,7 @@ class TrainingOptions(Serializable, OptionsBase):
             "activation",
             "prior_distributions",
             "wandb_log_freq",
+            "mlflow_log_freq",
             "compression_type",
             "strategy"
         ]
