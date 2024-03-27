@@ -33,7 +33,6 @@ def signal_handler(use_mlflow, signum, frame, ):
     print("Received cancellation signal. Cleaning up...", signum)
     # Add cleanup actions here, such as saving model state or logging metrics
     # For example, you can log an intermediate metric to MLflow before exiting
-    # mlflow.log_metric("training_status", "cancelled")
     if use_mlflow: 
         mlflow.end_run("KILLED")
     # Exit gracefully after cleanup
