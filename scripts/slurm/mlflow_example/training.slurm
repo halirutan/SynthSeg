@@ -12,8 +12,8 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=256GB
 #
-#SBATCH --partition=gpudev
-##SBATCH --constraint="gpu"
+## SBATCH --partition=gpudev
+#SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:a100:4
 #
 #SBATCH --mail-type=end

@@ -16,7 +16,6 @@ from . import segmentation_model
 from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss, MeanIoU
 from .training_options import TrainingOptions
 from .brain_generator import read_tfrecords
-from mlflow.tensorflow.callback import MLflowCallback 
 import mlflow
 import signal
 import functools
@@ -25,18 +24,6 @@ class NullStrategy:
     @staticmethod
     def scope():
         return nullcontext()
-    
-class NullTracking:
-    @staticmethod
-    def scope():
-        return nullcontext()
-    
-    
-class MLFlowTracking:      
-    @staticmethod
-    def scope():
-        set_mlflow_tracking()
-        return mlflow.start_run(log_system_metrics=True)
          
     
 def signal_handler(use_mlflow, signum, frame, ):
@@ -62,10 +49,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
     
-    signal.signal(signal.SIGINT, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
-    signal.signal(signal.SIGHUP, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
-    signal.signal(signal.SIGTERM, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
-    signal.signal(signal.SIGPIPE, functools.partial(signal_handler, opts.mlflow)) #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
+    signal.signal(signal.SIGINT, functools.partial(signal_handler, opts.mlflow)) 
+    signal.signal(signal.SIGTERM, functools.partial(signal_handler, opts.mlflow)) 
     
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
@@ -87,9 +73,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     
     
     if opts.mlflow:
-        tracking = MLFlowTracking()
-    else:
-        tracking = NullTracking()
+        from .mlflow_utils import set_mlflow_tracking
+        set_mlflow_tracking()
+        mlflow.start_run(log_system_metrics=True)
 
     output_dir = Path(opts.model_dir)
 
@@ -118,11 +104,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
     load_after_wl2_pretraining = False
-    
-    # if opts.mlflow:     
-    #     set_mlflow_tracking()
-
-    # Define and compile model
 
     with strategy.scope():
         # prepare the segmentation model
@@ -171,94 +152,95 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
     results = None
     
-    with tracking.scope() as tracking_run:
-    
-        if opts.wl2_epochs > 0 and checkpoint is None:
-            callbacks = build_callbacks(
-                output_dir=output_dir,
-                metric_type="wl2",
-                wandb=opts.wandb,
-                wandb_log_freq=opts.wandb_log_freq,
-                training_opts=opts,
-                mlflow=opts.mlflow, 
-                mlflow_log_freq=opts.mlflow_log_freq
+    if opts.wl2_epochs > 0 and checkpoint is None:
+        callbacks = build_callbacks(
+            output_dir=output_dir,
+            metric_type="wl2",
+            wandb=opts.wandb,
+            wandb_log_freq=opts.wandb_log_freq,
+            training_opts=opts,
+            mlflow=opts.mlflow, 
+            mlflow_log_freq=opts.mlflow_log_freq
+        )
+
+        # fit
+        results = wl2_model.fit(
+            dataset,
+            epochs=opts.wl2_epochs,
+            steps_per_epoch=opts.steps_per_epoch or None,
+            callbacks=callbacks,
+            validation_data=valid_dataset,
+        )
+
+        print(
+            "Number of iterations wl2_model seen: ",
+            wl2_model.optimizer.iterations.numpy(),
+        )
+
+        if opts.wandb:
+            import wandb
+
+            wandb.finish()
+
+        checkpoint = output_dir / ("wl2_epoch-%03d.keras" % opts.wl2_epochs)
+        find_last_checkpoint = False
+        load_after_wl2_pretraining = True
+
+    if opts.dice_epochs > 0:
+        with strategy.scope():
+            # fine-tuning with dice metric
+            dice_model, is_compiled, init_epoch, init_batch = load_model(
+                model=unet_model,
+                checkpoint=checkpoint,
+                metric_type="dice",
+                find_last_checkpoint=find_last_checkpoint,
+                load_after_wl2_pretraining=load_after_wl2_pretraining,
             )
 
-            # fit
-            results = wl2_model.fit(
-                dataset,
-                epochs=opts.wl2_epochs,
-                steps_per_epoch=opts.steps_per_epoch or None,
-                callbacks=callbacks,
-                validation_data=valid_dataset,
-            )
-
-            print(
-                "Number of iterations wl2_model seen: ",
-                wl2_model.optimizer.iterations.numpy(),
-            )
-
-            if opts.wandb:
-                import wandb
-
-                wandb.finish()
-
-            checkpoint = output_dir / ("wl2_epoch-%03d.keras" % opts.wl2_epochs)
-            find_last_checkpoint = False
-            load_after_wl2_pretraining = True
-
-        if opts.dice_epochs > 0:
-            with strategy.scope():
-                # fine-tuning with dice metric
-                dice_model, is_compiled, init_epoch, init_batch = load_model(
-                    model=unet_model,
-                    checkpoint=checkpoint,
-                    metric_type="dice",
-                    find_last_checkpoint=find_last_checkpoint,
-                    load_after_wl2_pretraining=load_after_wl2_pretraining,
+            if not is_compiled:
+                dice_model.compile(
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
+                    loss=DiceLoss(n_labels=opts.n_labels),
+                    metrics=[
+                        MeanIoU(
+                            num_classes=opts.n_labels,
+                            sparse_y_true=True,
+                            sparse_y_pred=False,
+                        )
+                    ],
                 )
 
-                if not is_compiled:
-                    dice_model.compile(
-                        optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
-                        loss=DiceLoss(n_labels=opts.n_labels),
-                        metrics=[
-                            MeanIoU(
-                                num_classes=opts.n_labels,
-                                sparse_y_true=True,
-                                sparse_y_pred=False,
-                            )
-                        ],
-                    )
+        print(
+            f"Optimizers number of iterations at the beginning: ",
+            dice_model.optimizer.iterations.numpy(),
+        )
+        print(
+            f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss"
+        )
+        print(f"Restarting from checkpoint: {init_epoch}")
+        dataset = dataset.skip(init_batch + opts.wl2_epochs * opts.steps_per_epoch)
 
-            print(
-                f"Optimizers number of iterations at the beginning: ",
-                dice_model.optimizer.iterations.numpy(),
-            )
-            print(
-                f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss"
-            )
-            print(f"Restarting from checkpoint: {init_epoch}")
-            dataset = dataset.skip(init_batch + opts.wl2_epochs * opts.steps_per_epoch)
+        callbacks = build_callbacks(
+            output_dir=output_dir,
+            metric_type="dice",
+            wandb=opts.wandb,
+            wandb_log_freq=opts.wandb_log_freq,
+            training_opts=opts,
+            mlflow = opts.mlflow, 
+            mlflow_log_freq=opts.mlflow_log_freq
+        )
 
-            callbacks = build_callbacks(
-                output_dir=output_dir,
-                metric_type="dice",
-                wandb=opts.wandb,
-                wandb_log_freq=opts.wandb_log_freq,
-                training_opts=opts,
-                mlflow = opts.mlflow, 
-                mlflow_log_freq=opts.mlflow_log_freq
-            )
-
-            results = dice_model.fit(
-                dataset,
-                epochs=opts.dice_epochs,
-                steps_per_epoch=opts.steps_per_epoch or None,
-                callbacks=callbacks,
-                initial_epoch=init_epoch,
-                validation_data=valid_dataset,
-            )           
+        results = dice_model.fit(
+            dataset,
+            epochs=opts.dice_epochs,
+            steps_per_epoch=opts.steps_per_epoch or None,
+            callbacks=callbacks,
+            initial_epoch=init_epoch,
+            validation_data=valid_dataset,
+        )      
+        
+    if opts.mlflow:
+        mlflow.end_run()     
 
     return results
 
@@ -395,83 +377,7 @@ def build_callbacks(
         callbacks.append(WandbMetricsLogger(log_freq=wandb_log_freq))
         
     if mlflow:
-        
+        from .mlflow_utils import MLflowCustomCallback
         callbacks.append(MLflowCustomCallback(mlflow_log_freq = mlflow_log_freq, metric_type=metric_type, opts = training_opts, ))
 
     return callbacks
-
-class MLflowCustomCallback(MLflowCallback):
-    def __init__(self, mlflow_log_freq: Union[None, str, int] = "epoch", metric_type: Optional[str] = None, opts:Optional[TrainingOptions] = None):
-        if mlflow_log_freq == "epoch":
-            kwargs = dict(log_every_epoch = True,log_every_n_steps=None)
-        elif mlflow_log_freq == "batch":
-            kwargs = dict(log_every_epoch = False,log_every_n_steps=1)
-        elif isinstance(mlflow_log_freq, int):
-            kwargs = dict(log_every_epoch = False,log_every_n_steps=mlflow_log_freq)
-        else: 
-            kwargs = {}
-        
-        super().__init__(**kwargs)
-        self._chief_worker_only = True
-        self.opts = opts
-        self.metric_type = metric_type
-
-            
-    def on_train_begin(self, logs=None):
-        super().on_train_begin(logs= logs)
-        mlflow.log_params({key: item for key, item in os.environ.items() if "SLURM" in key or "SBATCH" in key})
-        mlflow.log_params(self.opts.__dict__)
-        
-        
-    def on_epoch_end(self, epoch, logs=None):
-        """Log metrics at the end of each epoch."""
-        if not self.log_every_epoch or logs is None:
-            return
-        
-        
-        metrics = {f"train_{k}" if not any(k.startswith(prefix) for prefix in ["val_", "test_", "train_"]) else k: v for k, v in self.transform_logs(logs).items()}
-        mlflow.log_metrics(metrics, step=epoch, synchronous=False)
-
-
-    def on_train_batch_end(self, batch, logs=None):
-        """Log metrics at the end of each batch with user specified frequency."""
-        if self.log_every_n_steps is None or logs is None:
-            return
-        current_iteration = int(self.model.optimizer.iterations.numpy())
-
-        if current_iteration % self.log_every_n_steps == 0:
-            
-            metrics = {"train_" + k: v for k, v in self.transform_logs(logs).items()}
-            mlflow.log_metrics(metrics, step=current_iteration, synchronous=False)
-
-
-    def on_test_end(self, logs=None):
-        
-        # """Log validation metrics at validation end."""
-        if self.log_every_epoch or logs is None:
-            return
-        current_iteration = int(self.model.optimizer.iterations.numpy())
-        
-        
-        metrics = {"val_" + k: v for k, v in self.transform_logs(logs).items()}
-        mlflow.log_metrics(metrics,  step=current_iteration, synchronous=False)
-    
-        
-    def transform_logs(self, logs):
-        return {f"{k}-{self.metric_type}" if ("loss" in k) else k: v for k, v in logs.items()} if self.metric_type is not None else logs
-       
-        
-
-
-
-def set_mlflow_tracking():
-    import configparser
-
-    config = configparser.ConfigParser()
-    config.read(os.environ["MLFLOW_CONFIG"])
-    mlflow.set_tracking_uri(config['HPC_CLOUD']["URI"])
-
-    os.environ['MLFLOW_TRACKING_USERNAME'] = config["LOGIN"]["USERNAME"]
-    os.environ['MLFLOW_TRACKING_PASSWORD'] =  config["LOGIN"]["PASSWORD"]
-    mlflow.set_experiment(config['MLFLOW']["EXPERIMENT"])        
-    mlflow.tensorflow.autolog(disable = True, )
