@@ -20,28 +20,18 @@
 #SBATCH --mail-user=g.nasta.work@gmail.com
 #SBATCH --time=00:15:00
 
-if [ -n "$1" ]
-  then
-    cfg_name=$1
-  else
-    cfg_name="config.yml"
-fi
-
-config_path_original="/ptmp/nhorlava/projects/SynthSeg/training_configs/test_mlflow"
-cfg_file="$config_path_original/${cfg_name}"
-
+cfg_file="/ptmp/nhorlava/projects/SynthSeg/training_configs/test_mlflow/config.yml"
 sif_file=$HOME/Projects/SynthSeg/container/nvidia_tensorflow.sif
 
 code_dir="$HOME/Projects/SynthSeg"
 data_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
 output_dir=/ptmp/nhorlava/projects/SynthSeg/training_configs
 
-
 module purge
 module load apptainer/1.2.2
 
-# nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
-# NVIDIASMI_PID=$!
+nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
+NVIDIASMI_PID=$!
 
 apptainer_opts=(
   --nv
@@ -49,10 +39,6 @@ apptainer_opts=(
   --env PYTHONPATH=$code_dir
   # in the container this is set to true by default
   --env TF_FORCE_GPU_ALLOW_GROWTH=true
-  # enable autoclustering for CPU and GPU
-  #--env TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
-  # Useful for debugging
-  #--env NCCL_DEBUG=INFO
   --env MLFLOW_CONFIG="$HOME/Projects/SynthSeg/scripts/slurm/mlflow_example/config.ini"
   
 )
@@ -61,4 +47,4 @@ srun apptainer exec \
   "${apptainer_opts[@]}" \
   $sif_file python $code_dir/scripts/slurm/training.py --cfg_file=$cfg_file
 
-# kill $NVIDIASMI_PID
+kill $NVIDIASMI_PID
