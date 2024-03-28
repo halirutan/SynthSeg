@@ -77,7 +77,7 @@ mlflow: True
 mlflow_log_freq: epoch
 ```
 
-The behaviour of `mlflow_log_freq` argument is the same as the behaviour of `wandb_log_freq` argument: 
+The behavior of `mlflow_log_freq` argument is the same as the behavior of `wandb_log_freq` argument: 
 
 - if "epoch", logs metrics at the end of each epoch.
 - If "batch", logs metrics at the end of each batch.
@@ -86,7 +86,7 @@ The behaviour of `mlflow_log_freq` argument is the same as the behaviour of `wan
 
 2. **Providing a file with mlflow specs**: 
 
-To run Mlflow tracking, one need to provide configuration file with mlflow-specific arguments. An example of such config can be found in `scripts/slurm/mlflow_example/config.ini` or below: 
+To run Mlflow tracking, one needs to provide a configuration file with mlflow-specific arguments. An example of such config can be found in `scripts/slurm/mlflow_example/config.ini` or below: 
 
 ```
 [LOGIN]
