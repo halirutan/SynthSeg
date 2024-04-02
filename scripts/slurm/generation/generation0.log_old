@@ -1,0 +1,81 @@
+2023-11-22 15:30:11.694255: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F AVX512_VNNI FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-11-22 15:30:15.556673: I tensorflow/core/util/port.cc:104] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2023-11-22 15:30:36.491733: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer.so.7'; dlerror: libnvinfer.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /mpcdf/soft/SLE_15/packages/x86_64/cuda/11.6.2/extras/CUPTI/lib64/:/mpcdf/soft/SLE_15/packages/skylake/cudnn/cuda_11.6-11.6.2/8.8.1.3/lib64:/mpcdf/soft/SLE_15/packages/x86_64/cuda/11.6.2/lib64
+2023-11-22 15:30:36.491882: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer_plugin.so.7'; dlerror: libnvinfer_plugin.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /mpcdf/soft/SLE_15/packages/x86_64/cuda/11.6.2/extras/CUPTI/lib64/:/mpcdf/soft/SLE_15/packages/skylake/cudnn/cuda_11.6-11.6.2/8.8.1.3/lib64:/mpcdf/soft/SLE_15/packages/x86_64/cuda/11.6.2/lib64
+2023-11-22 15:30:36.491891: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Cannot dlopen some TensorRT libraries. If you would like to use Nvidia GPU with TensorRT, please make sure the missing libraries mentioned above are installed properly.
+2023-11-22 15:31:00,223 INFO: Project dir is: /raven/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
+2023-11-22 15:31:01,119 INFO: Loading generator config from configuration file.
+WARNING:tensorflow:From /mpcdf/soft/SLE_15/packages/skylake/tensorflow/gpu-cuda-11.6/anaconda_3_2021.11-2021.11/2.11.0/lib/python3.9/site-packages/tensorflow/python/autograph/pyct/static_analysis/liveness.py:83: Analyzer.lamba_check (from tensorflow.python.autograph.pyct.static_analysis.liveness) is deprecated and will be removed after 2023-09-23.
+Instructions for updating:
+Lambda fuctions will be no more assumed to be used in the statement where they are used, or at least in the same block. https://github.com/tensorflow/tensorflow/issues/56089
+2023-11-22 15:31:06.815964: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F AVX512_VNNI FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-11-22 15:31:15.254491: W tensorflow/core/common_runtime/gpu/gpu_bfc_allocator.cc:42] Overriding orig_value setting because the TF_FORCE_GPU_ALLOW_GROWTH environment variable is set. Original config value was 0.
+2023-11-22 15:31:15.254576: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1613] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 38202 MB memory:  -> device: 0, name: NVIDIA A100-SXM4-40GB, pci bus id: 0000:31:00.0, compute capability: 8.0
+2023-11-22 15:31:40.624770: I tensorflow/compiler/xla/service/service.cc:173] XLA service 0x14630c002b90 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2023-11-22 15:31:40.624813: I tensorflow/compiler/xla/service/service.cc:181]   StreamExecutor device (0): NVIDIA A100-SXM4-40GB, Compute Capability 8.0
+2023-11-22 15:31:42.439208: I tensorflow/compiler/jit/xla_compilation_cache.cc:477] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+2023-11-22 15:31:42.999817: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+2023-11-22 15:31:54.045263: I tensorflow/compiler/xla/stream_executor/cuda/cuda_blas.cc:630] TensorFloat-32 will be used for the matrix multiplication. This will only be logged once.
+2023-11-22 15:31:57.097908: I tensorflow/compiler/xla/stream_executor/cuda/cuda_dnn.cc:428] Loaded cuDNN version 8801
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 37s 37s/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000000.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:06,188 INFO: Exported training pair number 000000
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 480ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000001.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:13,207 INFO: Exported training pair number 000001
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 609ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000002.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:20,430 INFO: Exported training pair number 000002
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 721ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000003.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:27,612 INFO: Exported training pair number 000003
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 619ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000004.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:34,671 INFO: Exported training pair number 000004
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 652ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000005.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:41,845 INFO: Exported training pair number 000005
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 612ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000006.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:48,939 INFO: Exported training pair number 000006
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 450ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000007.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:32:55,829 INFO: Exported training pair number 000007
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 454ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000008.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:02,700 INFO: Exported training pair number 000008
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 452ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000009.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:09,555 INFO: Exported training pair number 000009
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 449ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000010.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:16,389 INFO: Exported training pair number 000010
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 446ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000011.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:23,275 INFO: Exported training pair number 000011
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 450ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000012.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:30,223 INFO: Exported training pair number 000012
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 1s 679ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000013.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:37,390 INFO: Exported training pair number 000013
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 493ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000014.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:44,324 INFO: Exported training pair number 000014
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 453ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000015.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:51,276 INFO: Exported training pair number 000015
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 453ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000016.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:33:58,242 INFO: Exported training pair number 000016
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 453ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000017.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:34:05,152 INFO: Exported training pair number 000017
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 451ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000018.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:34:12,034 INFO: Exported training pair number 000018
+1/1 [==============================] - ETA: 0s1/1 [==============================] - 0s 452ms/step
+Wrote 8 image-label pairs to /ptmp/dcfidalgo/projects/cbs/segmentation/generation/test/tfrecords/000019.tfrecord, image shape: [256, 256, 256, 1], n_labels: 33
+2023-11-22 15:34:18,894 INFO: Exported training pair number 000019

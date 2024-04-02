@@ -30,6 +30,9 @@ output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2
 module purge
 module load apptainer/1.2.2
 
+# configure WandB
+source wandb_env.sh
+
 nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
 NVIDIASMI_PID=$!
 
@@ -37,20 +40,15 @@ apptainer_opts=(
   --nv
   -B $code_dir,$data_dir,$output_dir
   --env PYTHONPATH=$code_dir
-  # in the container this is set to true by default
   --env TF_FORCE_GPU_ALLOW_GROWTH=true
   # enable autoclustering for CPU and GPU
   #--env TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
   # Useful for debugging
   #--env NCCL_DEBUG=INFO
-  --env WANDB_BASE_URL="http://10.186.1.194:80"
-  --env WANDB_API_KEY="local-3277de3bee22b1c6c3e074cfc1d73b7b169f5d41"
-  --env WANDB_PROJECT="synthseg"
-  --env WANDB_NAME="v2"
 )
 	
 srun apptainer exec \
   "${apptainer_opts[@]}" \
-  $sif_file python $code_dir/scripts/slurm/training.py --cfg_file=$cfg_file
+  $sif_file python $code_dir/scripts/slurm/training/training.py --cfg_file=$cfg_file
 
 kill $NVIDIASMI_PID
