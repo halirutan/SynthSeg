@@ -12,8 +12,8 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=256GB
 #
-## SBATCH --partition=gpudev
-#SBATCH --constraint="gpu"
+#SBATCH --partition=gpudev
+##SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:a100:4
 #
 #SBATCH --mail-type=end
@@ -39,7 +39,7 @@ apptainer_opts=(
   --env PYTHONPATH=$code_dir
   # in the container this is set to true by default
   --env TF_FORCE_GPU_ALLOW_GROWTH=true
-  --env MLFLOW_CONFIG="$HOME/Projects/SynthSeg/scripts/slurm/mlflow_example/config.ini"
+  --env-file "$HOME/Projects/SynthSeg/scripts/slurm/mlflow_example/mlflow_env.sh"
   
 )
 	

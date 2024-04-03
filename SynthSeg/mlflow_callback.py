@@ -8,13 +8,13 @@ from typing import Union, Optional
 import os
 
 class MLflowCustomCallback(MLflowCallback):
-    def __init__(self, mlflow_log_freq: Union[None, str, int] = "epoch", metric_type: Optional[str] = None, opts:Optional[TrainingOptions] = None):
-        if mlflow_log_freq == "epoch":
+    def __init__(self, log_freq: Union[None, str, int] = "epoch", metric_type: Optional[str] = None, opts:Optional[TrainingOptions] = None):
+        if log_freq == "epoch":
             kwargs = dict(log_every_epoch = True,log_every_n_steps=None)
-        elif mlflow_log_freq == "batch":
+        elif log_freq == "batch":
             kwargs = dict(log_every_epoch = False,log_every_n_steps=1)
-        elif isinstance(mlflow_log_freq, int):
-            kwargs = dict(log_every_epoch = False,log_every_n_steps=mlflow_log_freq)
+        elif isinstance(log_freq, int):
+            kwargs = dict(log_every_epoch = False,log_every_n_steps=log_freq)
         else: 
             kwargs = {}
         
@@ -67,16 +67,4 @@ class MLflowCustomCallback(MLflowCallback):
     def transform_logs(self, logs):
         return {f"{k}-{self.metric_type}" if ("loss" in k) else k: v for k, v in logs.items()} if self.metric_type is not None else logs
        
-        
-
-
-
-def set_mlflow_tracking():
-    config = configparser.ConfigParser()
-    config.read(os.environ["MLFLOW_CONFIG"])
-    mlflow.set_tracking_uri(config['HPC_CLOUD']["URI"])
-
-    os.environ['MLFLOW_TRACKING_USERNAME'] = config["LOGIN"]["USERNAME"]
-    os.environ['MLFLOW_TRACKING_PASSWORD'] =  config["LOGIN"]["PASSWORD"]
-    mlflow.set_experiment(config['MLFLOW']["EXPERIMENT"])        
-    mlflow.tensorflow.autolog(disable = True, )
+    

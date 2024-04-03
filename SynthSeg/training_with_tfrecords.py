@@ -15,9 +15,7 @@ from . import segmentation_model
 
 from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss, MeanIoU
 from .training_options import TrainingOptions
-from .brain_generator import read_tfrecords
-import mlflow
-import signal
+from .brain_generator import read_tfrecords 
 import functools
 
 class NullStrategy:
@@ -25,19 +23,6 @@ class NullStrategy:
     def scope():
         return nullcontext()
          
-    
-def signal_handler(use_mlflow, signum, frame, ):
-    """
-    Signal handler function to catch cancellation signals.
-    """
-    print("Received cancellation signal. Cleaning up...", signum)
-    # Add cleanup actions here, such as saving model state or logging metrics
-    # For example, you can log an intermediate metric to MLflow before exiting
-    if use_mlflow: 
-        mlflow.end_run("KILLED")
-    # Exit gracefully after cleanup
-    exit(1)
-    
 def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     """Train the U-net with a TFRecord Dataset.
 
@@ -47,10 +32,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     # Check epochs
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
-    
-    #this is to monitor and end mlflow job with "Kinned" status in case job finishes to early - e.g. due to time limitations
-    signal.signal(signal.SIGINT, functools.partial(signal_handler, opts.mlflow)) 
-    signal.signal(signal.SIGTERM, functools.partial(signal_handler, opts.mlflow)) 
     
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
@@ -72,9 +53,18 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     
     
     if opts.mlflow:
-        from .mlflow_utils import set_mlflow_tracking
-        set_mlflow_tracking()
+        import mlflow
+        import signal
+        def handler(signum, frame):
+            print("Received cancellation signal. Cleaning up...", signum)
+            # Add cleanup actions here, such as saving model state or logging metrics
+            # For example, you can log an intermediate metric to MLflow before exiting
+            mlflow.end_run("KILLED")
+            
+        mlflow.tensorflow.autolog(disable = True, )
         mlflow.start_run(log_system_metrics=True)
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler) 
 
     output_dir = Path(opts.model_dir)
 
@@ -156,10 +146,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             output_dir=output_dir,
             metric_type="wl2",
             wandb=opts.wandb,
-            wandb_log_freq=opts.wandb_log_freq,
+            log_freq=opts.log_freq,
             training_opts=opts,
             mlflow=opts.mlflow, 
-            mlflow_log_freq=opts.mlflow_log_freq
         )
 
         # fit
@@ -223,10 +212,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             output_dir=output_dir,
             metric_type="dice",
             wandb=opts.wandb,
-            wandb_log_freq=opts.wandb_log_freq,
+            log_freq=opts.log_freq,
             training_opts=opts,
             mlflow = opts.mlflow, 
-            mlflow_log_freq=opts.mlflow_log_freq
         )
 
         results = dice_model.fit(
@@ -339,9 +327,8 @@ def build_callbacks(
     output_dir: Path,
     metric_type,
     wandb: bool = False,
-    wandb_log_freq: Union[str, int] = "epoch",
+    log_freq: Union[str, int] = "epoch",
     mlflow: bool = False,
-    mlflow_log_freq: Union[str, int] = "epoch",
     training_opts: Optional[TrainingOptions] = None,
 ):
     # create log folder
@@ -373,10 +360,10 @@ def build_callbacks(
         from wandb.integration.keras import WandbMetricsLogger
 
         wandbm.init(config=asdict(training_opts) if training_opts else None)
-        callbacks.append(WandbMetricsLogger(log_freq=wandb_log_freq))
+        callbacks.append(WandbMetricsLogger(log_freq=log_freq))
         
     if mlflow:
-        from .mlflow_utils import MLflowCustomCallback
-        callbacks.append(MLflowCustomCallback(mlflow_log_freq = mlflow_log_freq, metric_type=metric_type, opts = training_opts, ))
+        from .mlflow_callback import MLflowCustomCallback
+        callbacks.append(MLflowCustomCallback(log_freq = log_freq, metric_type=metric_type, opts = training_opts, ))
 
     return callbacks
