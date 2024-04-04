@@ -33,7 +33,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     # Check epochs
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
-    
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
     ), "either wl2_epochs or dice_epochs must be positive, had {0} and {1}".format(
