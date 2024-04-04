@@ -15,7 +15,7 @@ from . import segmentation_model
 
 from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss, MeanIoU
 from .training_options import TrainingOptions
-from .brain_generator import read_tfrecords 
+from .brain_generator import read_tfrecords
 import functools
 
 class NullStrategy:
