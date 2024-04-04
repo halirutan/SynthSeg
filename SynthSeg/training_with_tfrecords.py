@@ -16,14 +16,14 @@ from . import segmentation_model
 from .metrics_model import WeightedL2Loss, DiceLoss, IdentityLoss, MeanIoU
 from .training_options import TrainingOptions
 from .brain_generator import read_tfrecords
-
+import functools
 
 class NullStrategy:
     @staticmethod
     def scope():
         return nullcontext()
-
-
+         
+         
 def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     """Train the U-net with a TFRecord Dataset.
 
@@ -33,7 +33,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     # Check epochs
     print(f"Setting seed to {opts.seed}")
     tf.keras.utils.set_random_seed(seed=opts.seed)
-
     assert (opts.wl2_epochs > 0) | (
         opts.dice_epochs > 0
     ), "either wl2_epochs or dice_epochs must be positive, had {0} and {1}".format(
@@ -42,6 +41,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
 
     if opts.mixed_precision is True:
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
+        tf.config.optimizer.set_experimental_options({"auto_mixed_precision": True})
 
     # Define distributed strategy
     if opts.strategy == "null":
@@ -50,6 +50,21 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
         strategy = tf.distribute.MirroredStrategy()
     else:
         raise NotImplementedError(f"The '{opts.strategy}' strategy is not implemented.")
+    
+    
+    if opts.mlflow:
+        import mlflow
+        import signal
+        def handler(signum, frame):
+            print("Received cancellation signal. Cleaning up...", signum)
+            # Add cleanup actions here, such as saving model state or logging metrics
+            # For example, you can log an intermediate metric to MLflow before exiting
+            mlflow.end_run("KILLED")
+            
+        mlflow.tensorflow.autolog(disable = True, )
+        mlflow.start_run(log_system_metrics=True)
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler) 
 
     output_dir = Path(opts.model_dir)
 
@@ -78,8 +93,6 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     checkpoint = opts.checkpoint
     find_last_checkpoint = opts.find_last_checkpoint
     load_after_wl2_pretraining = False
-
-    # Define and compile model
 
     with strategy.scope():
         # prepare the segmentation model
@@ -127,16 +140,15 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             )
 
     results = None
-    # additionally check that checkpoint is None, otherwise we assume that we want to
-    # resume from dice checkpoint and thus skip w2l-pretraining
-
+    
     if opts.wl2_epochs > 0 and checkpoint is None:
         callbacks = build_callbacks(
             output_dir=output_dir,
             metric_type="wl2",
             wandb=opts.wandb,
-            wandb_log_freq=opts.wandb_log_freq,
+            log_freq=opts.log_freq,
             training_opts=opts,
+            mlflow=opts.mlflow, 
         )
 
         # fit
@@ -200,8 +212,9 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             output_dir=output_dir,
             metric_type="dice",
             wandb=opts.wandb,
-            wandb_log_freq=opts.wandb_log_freq,
+            log_freq=opts.log_freq,
             training_opts=opts,
+            mlflow = opts.mlflow, 
         )
 
         results = dice_model.fit(
@@ -211,7 +224,10 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             callbacks=callbacks,
             initial_epoch=init_epoch,
             validation_data=valid_dataset,
-        )
+        )      
+        
+    if opts.mlflow:
+        mlflow.end_run()     
 
     return results
 
@@ -311,7 +327,8 @@ def build_callbacks(
     output_dir: Path,
     metric_type,
     wandb: bool = False,
-    wandb_log_freq: Union[str, int] = "epoch",
+    log_freq: Union[str, int] = "epoch",
+    mlflow: bool = False,
     training_opts: Optional[TrainingOptions] = None,
 ):
     # create log folder
@@ -343,6 +360,10 @@ def build_callbacks(
         from wandb.integration.keras import WandbMetricsLogger
 
         wandbm.init(config=asdict(training_opts) if training_opts else None)
-        callbacks.append(WandbMetricsLogger(log_freq=wandb_log_freq))
+        callbacks.append(WandbMetricsLogger(log_freq=log_freq))
+        
+    if mlflow:
+        from .mlflow_callback import MLflowCustomCallback
+        callbacks.append(MLflowCustomCallback(log_freq = log_freq, metric_type=metric_type, opts = training_opts, ))
 
     return callbacks

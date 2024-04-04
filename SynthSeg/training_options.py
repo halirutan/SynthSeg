@@ -315,11 +315,16 @@ class TrainingOptions(Serializable, OptionsBase):
     Add a WandB callback when training with the Dice loss function.
     """
 
-    wandb_log_freq: Union[int, str] = "epoch"
+    log_freq: Union[int, str] = "epoch"
     """
     if "epoch", logs metrics at the end of each epoch.
     If "batch", logs metrics at the end of each batch. If an integer, logs metrics at the end of that
     many batches.
+    """
+    
+    mlflow: bool = False
+    """
+    Add a mlflow callback when training with the Dice loss function.
     """
 
     # Only for training_with_tfrecords
@@ -417,7 +422,7 @@ class TrainingOptions(Serializable, OptionsBase):
         return [
             "activation",
             "prior_distributions",
-            "wandb_log_freq",
+            "log_freq",
             "compression_type",
             "strategy"
         ]
