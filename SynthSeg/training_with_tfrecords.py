@@ -23,6 +23,7 @@ class NullStrategy:
     def scope():
         return nullcontext()
          
+         
 def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
     """Train the U-net with a TFRecord Dataset.
 
