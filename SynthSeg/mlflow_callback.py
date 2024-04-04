@@ -67,4 +67,3 @@ class MLflowCustomCallback(MLflowCallback):
     def transform_logs(self, logs):
         return {f"{k}-{self.metric_type}" if ("loss" in k) else k: v for k, v in logs.items()} if self.metric_type is not None else logs
        
-    
