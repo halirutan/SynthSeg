@@ -206,7 +206,27 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss"
         )
         print(f"Restarting from checkpoint: {init_epoch}")
-        dataset = dataset.skip(init_batch + opts.wl2_epochs * opts.steps_per_epoch)
+        
+        if opts.num_skipped_batches is not None:
+            num_batches_to_skip = opts.num_skipped_batches
+        else: 
+            num_batches_to_skip = init_batch + opts.wl2_epochs * opts.steps_per_epoch
+        #TODO: continue from here
+        if opts.num_samples_per_file is not None: 
+            
+            num_samples_to_skip: int = (num_batches_to_skip)*opts.batchsize
+            num_files_to_skip = num_samples_to_skip // opts.num_samples_per_file 
+            num_images_remaining_to_skip =  num_samples_to_skip%opts.num_samples_per_file 
+            filelist_wo_skipped_files = files[:num_files_to_skip]
+            dataset = read_tfrecords(
+                filelist_wo_skipped_files,
+                compression_type=opts.compression_type,
+                num_parallel_reads=opts.num_parallel_reads,
+                )
+            dataset = dataset.skip(num_images_remaining_to_skip).batch(opts.batchsize).repeat()
+        else:
+            print("Might take some time!")
+            dataset = dataset.skip(num_batches_to_skip)
 
         callbacks = build_callbacks(
             output_dir=output_dir,
@@ -365,5 +385,37 @@ def build_callbacks(
     if mlflow:
         from .mlflow_callback import MLflowCustomCallback
         callbacks.append(MLflowCustomCallback(log_freq = log_freq, metric_type=metric_type, opts = training_opts, ))
+    
+    callbacks.append(SkipTimingCallback())
+        
 
     return callbacks
+
+#TODO: remove after profiling
+from time import perf_counter
+
+import mlflow
+class SkipTimingCallback(tf.keras.callbacks.Callback):
+    def __init__(self):
+        super().__init__()
+        self.init_time = perf_counter()
+        
+
+    def on_train_batch_begin(self, batch, logs=None):
+        batch_begin_time_train = perf_counter()
+        
+        time_from_initization_to_first_batch = self.train_begin_time-self.init_time
+        print("Time from initialization to batch start", time_from_initization_to_first_batch) 
+        mlflow.log_metrics({}) 
+        time_from_training_start_to_first_batch = self.train_begin_time-batch_begin_time_train
+        print("Time from training start to batch start",time_from_training_start_to_first_batch )
+        mlflow.log_metrics({"time_from_initization_to_first_batch": time_from_initization_to_first_batch, 
+                          "time_from_training_start_to_first_batch": time_from_training_start_to_first_batch}) 
+
+        
+
+    def on_train_begin(self, logs=None):
+        self.train_begin_time = perf_counter()
+
+
+

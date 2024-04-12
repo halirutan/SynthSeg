@@ -363,6 +363,15 @@ class TrainingOptions(Serializable, OptionsBase):
     """
     Number of output labels.
     """
+    
+    num_samples_per_file: Optional[int] = None
+    """
+    Number of samples that one TFRecord file contains. In case of resuming, providing it explicitly will help
+    to speed up the process of skipping the batches that network has already seen. 
+    """
+    
+    #TODO: remove it after test
+    num_skipped_batches: Optional[int] = None
 
     use_original_unet: bool = True
     """
@@ -424,5 +433,7 @@ class TrainingOptions(Serializable, OptionsBase):
             "prior_distributions",
             "log_freq",
             "compression_type",
-            "strategy"
+            "strategy",
+            "num_samples_per_file", 
+            "num_skipped_batches"
         ]
