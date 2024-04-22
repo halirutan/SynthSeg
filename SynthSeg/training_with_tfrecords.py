@@ -202,31 +202,34 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             f"Optimizers number of iterations at the beginning: ",
             dice_model.optimizer.iterations.numpy(),
         )
-        print(
-            f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss"
-        )
+      
         print(f"Restarting from checkpoint: {init_epoch}")
         
         if opts.num_skipped_batches is not None:
             num_batches_to_skip = opts.num_skipped_batches
+            print(f"Amount of batches that will be skipped: {num_batches_to_skip} batches")
         else: 
+            print(f"Amount of batches that will be skipped: {opts.wl2_epochs*opts.steps_per_epoch} batches from wl2 pretraining + {init_batch} from training on dice loss")
             num_batches_to_skip = init_batch + opts.wl2_epochs * opts.steps_per_epoch
-        #TODO: continue from here
-        if opts.num_samples_per_file is not None: 
             
-            num_samples_to_skip: int = (num_batches_to_skip)*opts.batchsize
-            num_files_to_skip = num_samples_to_skip // opts.num_samples_per_file 
-            num_images_remaining_to_skip =  num_samples_to_skip%opts.num_samples_per_file 
-            filelist_wo_skipped_files = files[:num_files_to_skip]
-            dataset = read_tfrecords(
-                filelist_wo_skipped_files,
-                compression_type=opts.compression_type,
-                num_parallel_reads=opts.num_parallel_reads,
-                )
-            dataset = dataset.skip(num_images_remaining_to_skip).batch(opts.batchsize).repeat()
-        else:
-            print("Might take some time!")
-            dataset = dataset.skip(num_batches_to_skip)
+        
+        #TODO: continue from here
+        if num_batches_to_skip>0:
+            if opts.num_samples_per_file is not None: 
+                print("num_samples_per_file=", opts.num_samples_per_file)
+                num_samples_to_skip: int = (num_batches_to_skip)*opts.batchsize
+                num_files_to_skip = num_samples_to_skip // opts.num_samples_per_file 
+                num_images_remaining_to_skip =  num_samples_to_skip%opts.num_samples_per_file 
+                filelist_wo_skipped_files = files[:num_files_to_skip]
+                dataset = read_tfrecords(
+                    filelist_wo_skipped_files,
+                    compression_type=opts.compression_type,
+                    num_parallel_reads=opts.num_parallel_reads,
+                    )
+                dataset = dataset.skip(num_images_remaining_to_skip).batch(opts.batchsize).repeat()
+            else:
+                print("Might take some time!")
+                dataset = dataset.skip(num_batches_to_skip)
 
         callbacks = build_callbacks(
             output_dir=output_dir,
@@ -402,15 +405,30 @@ class SkipTimingCallback(tf.keras.callbacks.Callback):
         
 
     def on_train_batch_begin(self, batch, logs=None):
-        batch_begin_time_train = perf_counter()
-        
-        time_from_initization_to_first_batch = self.train_begin_time-self.init_time
-        print("Time from initialization to batch start", time_from_initization_to_first_batch) 
-        mlflow.log_metrics({}) 
-        time_from_training_start_to_first_batch = self.train_begin_time-batch_begin_time_train
-        print("Time from training start to batch start",time_from_training_start_to_first_batch )
-        mlflow.log_metrics({"time_from_initization_to_first_batch": time_from_initization_to_first_batch, 
-                          "time_from_training_start_to_first_batch": time_from_training_start_to_first_batch}) 
+        current_iteration = int(self.model.optimizer.iterations.numpy())
+    
+        if batch==0 and current_iteration==0:
+            batch_begin_time_train = perf_counter()
+            
+            time_from_initization_to_first_batch = batch_begin_time_train-self.init_time
+            print("Time from initialization to batch start", time_from_initization_to_first_batch) 
+            time_from_training_start_to_first_batch = batch_begin_time_train-self.train_begin_time
+            print("Time from training start to batch start",time_from_training_start_to_first_batch )
+            mlflow.log_metrics({"time_from_initization_to_first_batch": time_from_initization_to_first_batch, 
+                            "time_from_training_start_to_first_batch": time_from_training_start_to_first_batch},step = batch) 
+            
+    def on_train_batch_end(self, batch, logs=None):
+        current_iteration = int(self.model.optimizer.iterations.numpy())
+
+        if batch==0 and current_iteration==1:
+            batch_end_time_train = perf_counter()
+            
+            time_from_initization_to_end_first_batch = batch_end_time_train-self.init_time
+            print("Time from initialization to batch end", time_from_initization_to_end_first_batch) 
+            time_from_training_start_to_end_first_batch = batch_end_time_train-self.train_begin_time
+            print("Time from training start to batch end",time_from_training_start_to_end_first_batch )
+            mlflow.log_metrics({"time_from_initization_to_end_first_batch": time_from_initization_to_end_first_batch, 
+                            "time_from_training_start_to_end_first_batch": time_from_training_start_to_end_first_batch},step = batch) 
 
         
 
