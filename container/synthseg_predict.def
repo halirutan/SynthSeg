@@ -1,0 +1,28 @@
+#BootStrap: docker
+#From: nvcr.io/nvidia/tensorflow:20.08-tf2-py3
+Bootstrap: localimage
+From: nvidia_tf_20.08.sif
+
+%files
+$SYNTHSEG_MODEL_DIR/synthseg_1.0.h5 /media/
+$SYNTHSEG_MODEL_DIR/synthseg_2.0.h5 /media/
+$SYNTHSEG_MODEL_DIR/synthseg_parc_2.0.h5 /media/
+$SYNTHSEG_MODEL_DIR/synthseg_qc_2.0.h5 /media/
+$SYNTHSEG_MODEL_DIR/synthseg_robust_2.0.h5 /media/
+
+%post
+git clone https://github.com/BBillot/SynthSeg.git
+mv /media/*.h5 /SynthSeg/models/
+pip install keras==2.3.1
+pip install nibabel==3.2.2
+pip install Pillow==8.4.0
+
+%runscript
+cd /SynthSeg && python scripts/commands/SynthSeg_predict.py "$@"
+
+%labels
+  author David Carreto Fidalgo
+  version 1.0
+
+%help
+  Container to run SynthSeg predictions, based on the converted Docker image for NVIDIAs Tensorflow (version 2.2.0).
