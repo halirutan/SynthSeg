@@ -188,7 +188,7 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             if not is_compiled:
                 lr = opts.lr
                 if opts.cosine_schedule:
-                    initial_learning_rate = 0 if opts.warmup_steps > 0 else opts.lr
+                    initial_learning_rate = 0.0 if opts.warmup_steps > 0 else opts.lr
                     decay_steps = (
                         opts.steps_per_epoch * opts.dice_epochs - opts.warmup_steps
                     )

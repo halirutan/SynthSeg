@@ -2,6 +2,7 @@
  "argv": [
   "apptainer",
   "exec",
+  "--nv",
   "--bind",
   "{connection_file}:/tmp/connection-spec",
   "/u/dcfidalgo/projects/cbs/segmentation/SynthSeg/container/nvidia_tensorflow.sif",

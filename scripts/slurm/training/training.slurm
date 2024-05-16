@@ -19,8 +19,8 @@
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
 #SBATCH --time=24:00:00
 
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2
-cfg_file=$output_dir/v2/config.yml
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v3
+cfg_file=$output_dir/config.yml
 code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
 sif_file=$code_dir/container/nvidia_tensorflow.sif
 

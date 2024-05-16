@@ -13,7 +13,7 @@ pip install matplotlib==3.4.3
 pip install seaborn==0.11.2
 pip install mlflow==2.11.2 --upgrade
 # If you want to use this container as kernel in jupyter
-pip install ipython ipykernel
+pip install ipython ipykernel ipywidgets
 
 %environment
 
