@@ -294,7 +294,7 @@ class TrainingOptions(Serializable, OptionsBase):
     Number of epochs for which the network (except the soft-max layer) is trained with L2 norm loss function.
     """
 
-    dice_epochs: int = 50
+    dice_epochs: int = 29
     """
     Number of epochs with the soft Dice loss function.
     """
@@ -396,6 +396,19 @@ class TrainingOptions(Serializable, OptionsBase):
     """
     Use mixed precision?
     """
+
+    cosine_schedule: bool = False
+    """
+    Use a cosine schedule for the learning rate?
+    """
+
+    warmup_steps: int = 0
+    """
+    Number of steps for the warmup if a lr scheduler is used.
+    """
+
+
+
 
     @staticmethod
     def get_np_list_options() -> List[str]:

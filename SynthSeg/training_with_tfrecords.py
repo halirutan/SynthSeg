@@ -186,8 +186,21 @@ def training(opts: TrainingOptions) -> tf.keras.callbacks.History:
             )
 
             if not is_compiled:
+                lr = opts.lr
+                if opts.cosine_schedule:
+                    initial_learning_rate = 0 if opts.warmup_steps > 0 else opts.lr
+                    decay_steps = (
+                        opts.steps_per_epoch * opts.dice_epochs - opts.warmup_steps
+                    )
+                    warmup_target = opts.lr if opts.warmup_steps > 0 else None
+                    lr = tf.keras.optimizers.schedules.CosineDecay(
+                        initial_learning_rate=initial_learning_rate,
+                        decay_steps=decay_steps,
+                        warmup_target=warmup_target,
+                        warmup_steps=opts.warmup_steps,
+                    )
                 dice_model.compile(
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=opts.lr),
+                    optimizer=tf.keras.optimizers.AdamW(learning_rate=lr),
                     loss=DiceLoss(n_labels=opts.n_labels),
                     metrics=[
                         MeanIoU(

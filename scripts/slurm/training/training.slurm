@@ -19,12 +19,12 @@
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
 #SBATCH --time=24:00:00
 
-cfg_file=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2/config.yml
-sif_file=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg/container/nvidia_tensorflow.sif
-
-code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
-data_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
 output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v2
+cfg_file=$output_dir/v2/config.yml
+code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
+sif_file=$code_dir/container/nvidia_tensorflow.sif
+
+data_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
 
 
 module purge
@@ -40,7 +40,7 @@ apptainer_opts=(
   --nv
   -B $code_dir,$data_dir,$output_dir
   --env PYTHONPATH=$code_dir
-  --env TF_FORCE_GPU_ALLOW_GROWTH=true
+  #--env TF_FORCE_GPU_ALLOW_GROWTH=true
   # enable autoclustering for CPU and GPU
   #--env TF_XLA_FLAGS="--tf_xla_auto_jit=2 --tf_xla_cpu_global_jit"
   # Useful for debugging
