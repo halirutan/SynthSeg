@@ -13,7 +13,6 @@ implied. See the License for the specific language governing permissions and lim
 License.
 """
 
-
 # python imports
 import numpy as np
 import tensorflow as tf
@@ -235,7 +234,7 @@ class BrainGenerator:
             assert self.generation_classes.shape == self.generation_labels.shape, \
                 'if provided, generation_classes should have the same shape as generation_labels'
             unique_classes = np.unique(self.generation_classes)
-            assert np.array_equal(unique_classes, np.arange(np.max(unique_classes)+1)), \
+            assert np.array_equal(unique_classes, np.arange(np.max(unique_classes) + 1)), \
                 'generation_classes should a linear range between 0 and its maximum value.'
         else:
             self.generation_classes = np.arange(self.generation_labels.shape[0])
@@ -330,7 +329,7 @@ class BrainGenerator:
         return image, labels
 
     def _put_in_native_space(
-        self, image: np.ndarray, labels: np.ndarray
+            self, image: np.ndarray, labels: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Helper method to put images/labels back in native space"""
         list_images = list()
@@ -346,7 +345,7 @@ class BrainGenerator:
         return image, labels
 
     def generate_tfrecord(
-        self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
+            self, file: Union[str, Path], compression_type: str = "", batch_size: int = 1
     ) -> Path:
         """Generate data for the `training_with_tfrecords` module.
 
@@ -379,7 +378,7 @@ class BrainGenerator:
             labelss.append(tmp_label[0])
 
         with tf.io.TFRecordWriter(
-            str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
+                str(file), options=tf.io.TFRecordOptions(compression_type=compression_type)
         ) as writer:
             for image, labels in zip(images, labelss):
                 # remove channel dim in labels
@@ -413,7 +412,7 @@ class BrainGenerator:
         return file.absolute()
 
     def tfrecord_to_brain(
-        self, file: Union[str, Path]
+            self, file: Union[str, Path]
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Read a tfrecord file and return the brain images and labels in the `self.generate_brain` format.
 
@@ -450,10 +449,37 @@ def create_brain_generator(opts: GeneratorOptions) -> BrainGenerator:
     return BrainGenerator(**opts.to_dict())
 
 
+def build_4_class_remapping() -> tf.keras.layers.Layer:
+    """
+    Builds a TensorFlow layer for remapping classes in our existing training data.
+
+    Returns:
+        tf.keras.layers.Layer: The remapping layer.
+    """
+    original_labels = [0, 14, 15, 16, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 4, 5, 7, 8, 10, 11,
+                       12, 13, 17, 18, 0, 26, 28, 0, 0, 0, 41, 42, 43, 44, 46, 47, 49, 50, 51, 52, 53, 54,
+                       0, 58, 60, 0, 0, 0]
+    remapped_labels = [0, 3, 3, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 3,
+                       3, 2, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 2, 1, 3, 3, 2, 1, 1,
+                       1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0]
+    original_to_remap = dict(zip(original_labels, remapped_labels))
+    unique_labels = np.unique(original_labels)
+    unique_tf_labels = np.arange(len(unique_labels))
+
+    tf_to_original = dict(zip(unique_tf_labels, unique_labels))
+
+    unique_remapped_labels = [original_to_remap[tf_to_original[label]] for label in unique_tf_labels]
+    return layers.ConvertLabels(unique_tf_labels, unique_remapped_labels)
+
+
+# Global instance so that we don't need to build this layer over and over again.
+class_4_remapping = build_4_class_remapping()
+
+
 def read_tfrecords(
-    files: List[Union[Path, str]],
-    compression_type: str = "",
-    num_parallel_reads: Optional[int] = None,
+        files: List[Union[Path, str]],
+        compression_type: str = "",
+        num_parallel_reads: Optional[int] = None,
 ) -> tf.data.Dataset:
     """Read in TFRecords and return a TF Dataset.
 
@@ -477,6 +503,7 @@ def read_tfrecords(
         example = tf.io.parse_single_example(example, feature_description)
         image = tf.io.parse_tensor(example["image"], out_type=tf.float32)
         labels = tf.io.parse_tensor(example["labels"], out_type=tf.int32)
+        labels = class_4_remapping(labels)
 
         return image, labels
 
