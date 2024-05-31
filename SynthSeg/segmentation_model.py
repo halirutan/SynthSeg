@@ -12,6 +12,21 @@ def unet(
     nb_conv_per_level: int = 2,
     activation: str = "elu",
 ):
+    """
+    With defaults, this has ~13M parameters.
+
+    Args:
+        input_shape:
+        n_labels:
+        unet_feat_count:
+        conv_size:
+        n_levels:
+        nb_conv_per_level:
+        activation:
+
+    Returns:
+
+    """
     inputs = tf.keras.Input(shape=input_shape)
 
     skip_connections = []
