@@ -19,7 +19,7 @@
 #SBATCH --mail-user=david.carreto.fidalgo@mpcdf.mpg.de
 #SBATCH --time=24:00:00
 
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v3
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/training/v4
 cfg_file=$output_dir/config.yml
 code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
 sif_file=$code_dir/container/nvidia_tensorflow.sif
@@ -31,7 +31,7 @@ module purge
 module load apptainer/1.2.2
 
 # configure WandB
-source wandb_env.sh
+source wandb_env_local.sh
 
 nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory --format=csv -l 2 > nvidia_smi_monitoring.csv &
 NVIDIASMI_PID=$!
