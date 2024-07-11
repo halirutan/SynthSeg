@@ -16,6 +16,8 @@ class Options:
     config: Path
     # Path to the output folder. In this folder we will create an 'images' and 'labels' folder.
     output: Path
+    # Skip the first N files
+    skip: int = 0
 
 
 def to_niftis(tfrecord_path: Path, brain_generator_config: Path, output_path: Path):
@@ -63,5 +65,8 @@ if __name__ == "__main__":
     if opts.input.is_file():
         to_niftis(opts.input, opts.config, opts.output)
     else:
-        for file in tqdm(sorted(list(opts.input.glob("*.tfrecord")))):
+        file_list = sorted(list(opts.input.glob("*.tfrecord")))
+        for i, file in tqdm(enumerate(file_list)):
+            if i < opts.skip:
+                continue
             to_niftis(file, opts.config, opts.output)
