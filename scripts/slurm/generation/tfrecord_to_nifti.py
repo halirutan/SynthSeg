@@ -15,13 +15,16 @@ class Options:
     """Script to convert TFRecords to NIfTIs."""
 
     # Can be either a path to a single TFRecord file or a folder containing TFRecord files.
+    # The files in a folder will be sorted and processes sequentially.
     input: Path
     # Path to the brain generator config file, used to generate the TFRecords.
     config: Path
     # Path to the output folder.
     output: Path
-    # Skip the first N files
-    skip: int = 0
+    # If input is a path, this is the number of files to convert.
+    batch_size: int = 500
+    # ID of the batch, so we start converting the files from batch_id*batch_size.
+    batch_id: int = 0
     # Tar the images and labels into one tar file. In each TFRecord file there are 8 image/label pairs.
     tar: bool = False
     # Delete the TFRecord file after converting it to NifTIs?
@@ -44,6 +47,7 @@ def to_niftis(
         brain_generator_config: Path to the brain generator config file.
         output_path: Path to the output folder.
         tar: Tar the NIfTIs into one tar file.
+        delete: Delete the TFRecord file after converting it to NifTIs?
     """
     from ext.lab2im.layers import ConvertLabels
     from ext.lab2im.utils import save_volume
@@ -98,7 +102,7 @@ if __name__ == "__main__":
         to_niftis(opts.input, opts.config, opts.output, opts.tar, opts.delete)
     else:
         file_list = sorted(list(opts.input.glob("*.tfrecord")))
-        for i, file in tqdm(enumerate(file_list)):
-            if i < opts.skip:
-                continue
+        start = opts.batch_id*opts.batch_size 
+        file_list = file_list[start:start+opts.batch_size]
+        for i, file in tqdm(file_list):
             to_niftis(file, opts.config, opts.output, opts.tar, opts.delete)
