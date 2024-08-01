@@ -10,7 +10,7 @@
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=18
-#SBATCH --mem=64GB
+#SBATCH --mem=128GB
 #SBATCH --gres=gpu:a100:1
 #
 #SBATCH --mail-type=none
@@ -19,8 +19,8 @@
 
 
 code_dir=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg
-output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v2
-count=500
+output_dir=/ptmp/dcfidalgo/projects/cbs/segmentation/generation/v3
+count=250
 
 module purge
 module load apptainer/1.2.2
@@ -29,11 +29,10 @@ module load apptainer/1.2.2
 srun apptainer exec \
 	--nv \
 	--bind /ptmp/dcfidalgo \
-	--env PYTHONPATH=/u/dcfidalgo/projects/cbs/segmentation/SynthSeg,TF_FORCE_GPU_ALLOW_GROWTH=false \
-	/u/dcfidalgo/projects/cbs/segmentation/SynthSeg/container/nvidia_tensorflow.sif python /u/dcfidalgo/projects/cbs/segmentation/SynthSeg/scripts/slurm/generation.py \
+	--env PYTHONPATH=${code_dir},TF_FORCE_GPU_ALLOW_GROWTH=false \
+	${code_dir}/container/nvidia_tensorflow.sif python ${code_dir}/scripts/slurm/generation.py \
 		--output_dir=${output_dir} \
 		--config_file=${output_dir}/config.yml \
-		--tfrecord \
 		--count=${count} \
 		--start_int=$(($SLURM_ARRAY_TASK_ID*${count})) \
 		2>&1 | tee -a generation${SLURM_ARRAY_TASK_ID}.log
