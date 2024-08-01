@@ -104,5 +104,5 @@ if __name__ == "__main__":
         file_list = sorted(list(opts.input.glob("*.tfrecord")))
         start = opts.batch_id*opts.batch_size 
         file_list = file_list[start:start+opts.batch_size]
-        for i, file in tqdm(file_list):
+        for file in tqdm(file_list):
             to_niftis(file, opts.config, opts.output, opts.tar, opts.delete)
