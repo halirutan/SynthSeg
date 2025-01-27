@@ -14,12 +14,11 @@
 module purge
 module load cuda/11.6
 
-source "${HOME}/mambaforge/etc/profile.d/conda.sh"
-source "${HOME}/mambaforge/etc/profile.d/mamba.sh"
+source "${HOME}/miniforge/etc/profile.d/conda.sh"
 
 export XLA_FLAGS="--xla_gpu_cuda_data_dir=${CUDA_ROOT}"
 
-mamba activate synth_seg_py39
+conda activate synth_seg_py39
 
 
 # Run the program:

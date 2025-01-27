@@ -47,7 +47,7 @@ def cross_entropy(y_pred, y_true):
 
 # Accuracy metric.
 def accuracy(y_pred, y_true):
-    # Predicted class is the index of highest score in prediction vector (i.e. argmax).
+    # Predicted class is the index of the highest score in prediction vector (i.e., argmax).
     correct_prediction = tf.equal(tf.argmax(y_pred, 1), tf.cast(y_true, tf.int64))
     return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
@@ -66,7 +66,7 @@ def run_optimization(x, y):
     # Compute gradients.
     gradients = g.gradient(loss, [W, b])
 
-    # Update W and b following gradients.
+    # Update W and b of the following gradients.
     optimizer.apply_gradients(zip(gradients, [W, b]))
 
 
@@ -81,7 +81,7 @@ for step, (batch_x, batch_y) in enumerate(train_data.take(training_steps), 1):
         acc = accuracy(pred, batch_y)
         print("step: %i, loss: %f, accuracy: %f" % (step, loss, acc))
 
-# Test model on validation set.
+# Test model on the validation set.
 pred = logistic_regression(x_test)
 print("Test Accuracy: %f" % accuracy(pred, y_test))
 
