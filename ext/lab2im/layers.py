@@ -261,7 +261,9 @@ class RandomCrop(tf.keras.layers.Layer):
             return unpack_singleton([tf.cast(v, t) for (t, v) in zip(types, inputs)])
 
     def _single_slice(self, vol):
-        crop_idx = tf.cast(tf.random.uniform([self.n_dims], 0, np.array(self.crop_max_val), 'float32'), dtype='int32')
+        # TODO Patrick: I changed this for reasons
+        # crop_idx = tf.cast(tf.random.uniform([self.n_dims], 0, np.array(self.crop_max_val), 'float32'), dtype='int32')
+        crop_idx = tf.cast(np.array(self.crop_max_val) / 2.0, dtype='int32')
         crop_idx = tf.concat([crop_idx, tf.zeros([1], dtype='int32')], axis=0)
         crop_size = tf.convert_to_tensor(self.crop_shape + [-1], dtype='int32')
         return tf.slice(vol, begin=crop_idx, size=crop_size)
