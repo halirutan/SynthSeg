@@ -18,9 +18,9 @@ echo "CONDA_INIT ${CONDA_INIT}"
 
 # First check valid OS and if the environment.yml file does exist in the script directory
 OS=$(uname)
-if [ "$OS" == "Linux" ]; then
+if [ "$OS" = "Linux" ]; then
   ENV_FILE="${SCRIPT_DIR}/environment.yml"
-elif [ "$OS" == "Darwin" ]; then
+elif [ "$OS" = "Darwin" ]; then
   ENV_FILE="${SCRIPT_DIR}/environment_osx.yml"
 else
   echo "Unsupported operating system: $OS. This script only works on Linux or OSX."
@@ -56,8 +56,8 @@ fi
 # Check if the conda environment already exist. If yes, we update it. If not, we create it from the environment.yml
 if mamba env list | grep -q "^${ENV_NAME}"; then
   echo "Environment ${ENV_NAME} already exists. Running an update according to ${ENV_FILE}"
-  mamba env update -f "${SCRIPT_DIR}/environment.yml"
+  mamba env update --yes -f "${ENV_FILE}"
 else
   echo "Environment ${ENV_NAME} does not exist. Creating it according to ${ENV_FILE}"
-  mamba env create -f "${SCRIPT_DIR}/environment.yml"
+  mamba env create --yes -f "${ENV_FILE}"
 fi
