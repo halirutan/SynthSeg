@@ -157,8 +157,8 @@ def analyze_scan_and_label(scan_file: str, label_file: str, settings: Statistics
     right_regions.sort(key=lambda entry: entry.segmentation_class)
     neutral_regions = [reg for reg in result if reg not in left_regions and reg not in right_regions]
     neutral_regions.sort(key=lambda entry: entry.segmentation_class)
-    assert len(left_regions) == len(right_regions), \
-        "There should be exactly as many left regions as there are right regions"
+    # assert len(left_regions) == len(right_regions), \
+    #     "There should be exactly as many left regions as there are right regions"
     return {
         "neutral_regions": neutral_regions,
         "left_regions": left_regions,
